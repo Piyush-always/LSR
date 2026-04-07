@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Laser Keychain</title>
+    <link rel="stylesheet" href="css/style.css?v=2">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <!-- Floating Decorative Elements (visible on all screens) -->
+    <div class="decorations" id="decorations">
+        <!-- Keychain shape - top right -->
+        <div class="deco deco-keychain">
+            <svg viewBox="0 0 120 52" width="120" height="52">
+                <rect x="2" y="2" width="116" height="48" rx="8" fill="#0a0a0a" stroke="#00e5ff" stroke-width="2"/>
+                <circle cx="22" cy="26" r="8" fill="none" stroke="#00e5ff" stroke-width="2"/>
+                <circle cx="22" cy="26" r="4" fill="#00e5ff" opacity="0.3"/>
+                <text x="70" y="31" text-anchor="middle" fill="#00e5ff" font-family="Inter" font-size="14" font-weight="700">LASER</text>
+            </svg>
+        </div>
+
+        <!-- Key ring - bottom right -->
+        <div class="deco deco-ring">
+            <svg viewBox="0 0 80 80" width="80" height="80">
+                <circle cx="40" cy="40" r="32" fill="none" stroke="#0a0a0a" stroke-width="4"/>
+                <circle cx="40" cy="40" r="24" fill="none" stroke="#00e5ff" stroke-width="2" stroke-dasharray="8 4"/>
+            </svg>
+        </div>
+
+        <!-- Dot grid - left -->
+        <div class="deco deco-dots">
+            <svg viewBox="0 0 80 80" width="80" height="80">
+                <g fill="#0a0a0a">
+                    <circle cx="10" cy="10" r="3"/><circle cx="30" cy="10" r="3"/><circle cx="50" cy="10" r="3"/><circle cx="70" cy="10" r="3"/>
+                    <circle cx="10" cy="30" r="3"/><circle cx="30" cy="30" r="3"/><circle cx="50" cy="30" r="3"/><circle cx="70" cy="30" r="3"/>
+                    <circle cx="10" cy="50" r="3"/><circle cx="30" cy="50" r="3"/><circle cx="50" cy="50" r="3"/><circle cx="70" cy="50" r="3"/>
+                    <circle cx="10" cy="70" r="3"/><circle cx="30" cy="70" r="3"/><circle cx="50" cy="70" r="3"/><circle cx="70" cy="70" r="3"/>
+                </g>
+            </svg>
+        </div>
+
+        <!-- Triangle - top left -->
+        <div class="deco deco-triangle">
+            <svg viewBox="0 0 60 60" width="60" height="60">
+                <polygon points="30,5 55,55 5,55" fill="none" stroke="#00e5ff" stroke-width="2"/>
+            </svg>
+        </div>
+
+        <!-- Laser beam lines - bottom left -->
+        <div class="deco deco-lines">
+            <svg viewBox="0 0 100 60" width="100" height="60">
+                <line x1="0" y1="0" x2="100" y2="20" stroke="#0a0a0a" stroke-width="2"/>
+                <line x1="0" y1="15" x2="100" y2="35" stroke="#00e5ff" stroke-width="1.5" opacity="0.6"/>
+                <line x1="0" y1="30" x2="100" y2="50" stroke="#0a0a0a" stroke-width="1"/>
+                <line x1="0" y1="45" x2="80" y2="60" stroke="#00e5ff" stroke-width="1" opacity="0.4"/>
+            </svg>
+        </div>
+
+        <!-- Small circle - mid right -->
+        <div class="deco deco-circle-small">
+            <svg viewBox="0 0 40 40" width="40" height="40">
+                <circle cx="20" cy="20" r="16" fill="#00e5ff" opacity="0.15"/>
+                <circle cx="20" cy="20" r="8" fill="#00e5ff" opacity="0.3"/>
+            </svg>
+        </div>
+
+        <!-- Keychain 2 - bottom -->
+        <div class="deco deco-keychain2">
+            <svg viewBox="0 0 90 40" width="90" height="40">
+                <rect x="2" y="2" width="86" height="36" rx="6" fill="#00e5ff" opacity="0.1" stroke="#00e5ff" stroke-width="1.5"/>
+                <circle cx="18" cy="20" r="6" fill="none" stroke="#0a0a0a" stroke-width="1.5"/>
+                <text x="55" y="24" text-anchor="middle" fill="#0a0a0a" font-family="Inter" font-size="11" font-weight="700">NAME</text>
+            </svg>
+        </div>
+    </div>
+
+    <!-- Screen 1: Welcome -->
+    <section id="screen-welcome" class="screen active">
+        <div class="container">
+            <p class="welcome-label">LASER ENGRAVED</p>
+            <h1 class="welcome-title">
+                Start Making<br>Your Custom<br>Keychain
+            </h1>
+            <p class="welcome-sub">Personalized. Precision-cut. Yours in minutes.</p>
+            <button class="btn btn-primary" id="btn-start">
+                Get Started
+                <svg class="btn-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/>
+                </svg>
+            </button>
+        </div>
+    </section>
+
+    <!-- Screen 2: Preview + Name Input -->
+    <section id="screen-preview" class="screen">
+        <div class="container">
+            <h2 class="section-title">Design Your Keychain</h2>
+
+            <div class="preview-box">
+                <div class="keychain-preview" id="keychain-preview">
+                    <svg viewBox="0 0 320 140" class="keychain-svg" id="keychain-svg">
+                        <rect x="10" y="20" width="300" height="100" rx="12" ry="12" class="keychain-body"/>
+                        <rect x="14" y="24" width="292" height="92" rx="10" ry="10" class="keychain-inner"/>
+                        <circle cx="46" cy="70" r="12" class="keychain-hole"/>
+                        <circle cx="46" cy="70" r="8" class="keychain-hole-inner"/>
+                        <text x="180" y="78" class="keychain-text" id="keychain-text" text-anchor="middle">YOUR NAME</text>
+                    </svg>
+                </div>
+                <p class="preview-hint">Live preview of your keychain</p>
+            </div>
+
+            <div class="input-group">
+                <label for="name-input">Enter your name</label>
+                <input
+                    type="text"
+                    id="name-input"
+                    placeholder="Type your name here..."
+                    maxlength="12"
+                    autocomplete="off"
+                    spellcheck="false"
+                >
+                <span class="char-count"><span id="char-current">0</span>/12</span>
+            </div>
+
+            <div class="price-tag">
+                <span class="price-label">Price</span>
+                <span class="price-amount">&#8377;99</span>
+            </div>
+
+            <button class="btn btn-primary" id="btn-pay" disabled>
+                Proceed to Pay
+                <svg class="btn-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/>
+                </svg>
+            </button>
+        </div>
+    </section>
+
+    <!-- Screen 3: Payment Processing -->
+    <section id="screen-payment" class="screen">
+        <div class="container">
+            <div class="loader-ring"></div>
+            <h2 class="section-title">Processing Payment...</h2>
+            <p class="payment-sub">Please complete the payment in the Razorpay window.</p>
+        </div>
+    </section>
+
+    <!-- Screen 4: Success / Queue -->
+    <section id="screen-success" class="screen">
+        <div class="container">
+            <div class="success-icon">
+                <svg viewBox="0 0 80 80" class="checkmark-svg">
+                    <circle cx="40" cy="40" r="36" class="checkmark-circle"/>
+                    <polyline points="24,42 36,54 56,30" class="checkmark-tick"/>
+                </svg>
+            </div>
+            <h2 class="section-title success-title">You're in the Queue!</h2>
+            <p class="queue-position">Position <span id="queue-number">#1</span></p>
+            <p class="success-sub">Your custom keychain for <strong id="success-name"></strong> is being prepared.</p>
+            <div class="success-footer">
+                <p>Sit back and relax. We'll laser-print it shortly.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
+    <script src="js/firebase-config.js"></script>
+
+    <!-- Razorpay SDK -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+    <!-- App -->
+    <script src="js/app.js"></script>
+</body>
+</html>

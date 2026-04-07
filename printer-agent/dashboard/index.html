@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laser Keychain — Print Queue</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <h1 class="logo">LASER</h1>
+            <span class="header-label">Print Queue</span>
+        </div>
+        <div class="header-right">
+            <div class="status-dot" id="status-dot"></div>
+            <span class="status-text" id="status-text">Connecting...</span>
+        </div>
+    </header>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat">
+            <span class="stat-number" id="stat-queued">0</span>
+            <span class="stat-label">Queued</span>
+        </div>
+        <div class="stat">
+            <span class="stat-number" id="stat-printing">0</span>
+            <span class="stat-label">Printing</span>
+        </div>
+        <div class="stat">
+            <span class="stat-number" id="stat-done">0</span>
+            <span class="stat-label">Done</span>
+        </div>
+    </div>
+
+    <!-- Queue Grid -->
+    <main class="queue-grid" id="queue-grid">
+        <!-- Cards will be injected by JS -->
+    </main>
+
+    <!-- Empty State -->
+    <div class="empty-state" id="empty-state">
+        <svg viewBox="0 0 120 52" width="160" height="70">
+            <rect x="2" y="2" width="116" height="48" rx="8" fill="none" stroke="#ccc" stroke-width="2"/>
+            <circle cx="22" cy="26" r="8" fill="none" stroke="#ccc" stroke-width="2"/>
+            <text x="70" y="31" text-anchor="middle" fill="#ccc" font-family="Inter" font-size="14" font-weight="700">WAITING</text>
+        </svg>
+        <p>No orders in queue. Waiting for new orders...</p>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

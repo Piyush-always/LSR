@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Orders collection
+    match /orders/{orderId} {
+      // Allow reading orders (for printer dashboard)
+      // All writes go through Cloud Functions
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Counter for queue position
+    match /meta/counter {
+      allow read, write: if false;
+    }
+  }
+}

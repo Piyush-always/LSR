@@ -1,0 +1,14 @@
+{
+  "name": "laser-keychain-printer-agent",
+  "description": "Listens to Firestore queue and generates keychain images for laser printing",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^11.11.0",
+    "@napi-rs/canvas": "^0.1.53",
+    "serialport": "^12.0.0",
+    "express": "^4.18.2",
+    "ws": "^8.16.0"
+  }
+}
