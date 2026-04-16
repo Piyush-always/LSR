@@ -137,6 +137,19 @@ async function sendInitSequence() {
     await sendCommand('G21'); // mm
     await sendCommand('G90'); // absolute
     await sendCommand('M5');  // laser off
+
+    // === DEFINE HOME (session origin) ===
+    // Clear any stale work-coordinate offset from a previous session,
+    // then set the current physical position as (0, 0) = HOME.
+    // Every subsequent job treats this spot as HOME and returns to it
+    // between jobs. This keeps keychains in the same physical spot run
+    // after run — no drift.
+    //
+    // To re-home: jog the laser to the new spot, then disconnect and
+    // reconnect the agent (Ctrl+C + restart `node index.js`).
+    await sendCommand('G92.1');      // clear any prior G92 offset
+    await sendCommand('G92 X0 Y0');  // current position is now HOME
+    console.log('[SERIAL] HOME set at current physical position');
 }
 
 /**

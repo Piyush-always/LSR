@@ -2,6 +2,10 @@ const admin = require('firebase-admin');
 const path = require('path');
 const { generateKeychainImage } = require('./generate-image');
 const { imageToGcode } = require('./image-to-gcode');
+const { textToGcode } = require('./text-to-gcode');
+
+// Engraving mode: 'vector' (filled letters via opentype) or 'raster' (pixel scan)
+const ENGRAVING_MODE = process.env.ENGRAVING_MODE || 'vector';
 const { connect, sendGcodeFile, listPorts, disconnect, SERIAL_CONFIG } = require('./laser-sender');
 
 // ===== CONFIGURATION =====
@@ -140,13 +144,21 @@ async function processOrder(order) {
     // Mark as printing
     await db.collection('orders').doc(order.id).update({ status: 'printing' });
 
-    // Step 1: Generate keychain image
+    // Step 1: Generate keychain preview image (used by dashboard)
     console.log('[STEP 1] Generating keychain image...');
-    const imagePath = generateKeychainImage(order.name, order.id);
+    generateKeychainImage(order.name, order.id);
 
-    // Step 2: Convert to G-code
-    console.log('[STEP 2] Converting to G-code...');
-    const gcodePath = await imageToGcode(imagePath, order.id);
+    // Step 2: Generate G-code (vector or raster mode)
+    let gcodePath;
+    if (ENGRAVING_MODE === 'vector') {
+        const fontId = order.fontId || 'pixel';
+        console.log(`[STEP 2] Generating vector G-code (font=${fontId})...`);
+        gcodePath = await textToGcode(order.name, order.id, fontId);
+    } else {
+        console.log('[STEP 2] Generating raster G-code...');
+        const imagePath = generateKeychainImage(order.name, order.id);
+        gcodePath = await imageToGcode(imagePath, order.id);
+    }
 
     // Step 3: Send to laser — must succeed or we throw
     console.log('[STEP 3] Sending to laser printer...');

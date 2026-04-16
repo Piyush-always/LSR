@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Custom Laser Keychain</title>
-    <link rel="stylesheet" href="css/style.css?v=2">
+    <link rel="stylesheet" href="css/style.css?v=3">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700;800;900&family=Montserrat:wght@700&family=Noto+Emoji&family=Pacifico&family=Permanent+Marker&family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -101,15 +102,46 @@
 
             <div class="preview-box">
                 <div class="keychain-preview" id="keychain-preview">
-                    <svg viewBox="0 0 320 140" class="keychain-svg" id="keychain-svg">
-                        <rect x="10" y="20" width="300" height="100" rx="12" ry="12" class="keychain-body"/>
-                        <rect x="14" y="24" width="292" height="92" rx="10" ry="10" class="keychain-inner"/>
-                        <circle cx="46" cy="70" r="12" class="keychain-hole"/>
-                        <circle cx="46" cy="70" r="8" class="keychain-hole-inner"/>
-                        <text x="180" y="78" class="keychain-text" id="keychain-text" text-anchor="middle">YOUR NAME</text>
+                    <!--
+                        viewBox is in MILLIMETERS, extended around the keychain
+                        to leave room for dimension labels. The keychain itself
+                        occupies (0,0) to (72,35).
+                    -->
+                    <svg viewBox="-7 -7 86 49" class="keychain-svg" id="keychain-svg">
+                        <!-- Width dimension (above) -->
+                        <line x1="0"  y1="-3" x2="72" y2="-3" stroke="#bbb" stroke-width="0.18"/>
+                        <line x1="0"  y1="-2" x2="0"  y2="-4" stroke="#bbb" stroke-width="0.18"/>
+                        <line x1="72" y1="-2" x2="72" y2="-4" stroke="#bbb" stroke-width="0.18"/>
+                        <text x="36" y="-4.5" font-size="2.6" text-anchor="middle"
+                              fill="#888" font-family="Inter, sans-serif" font-weight="600">72 mm</text>
+
+                        <!-- Height dimension (left) -->
+                        <line x1="-3" y1="0"  x2="-3" y2="35" stroke="#bbb" stroke-width="0.18"/>
+                        <line x1="-2" y1="0"  x2="-4" y2="0"  stroke="#bbb" stroke-width="0.18"/>
+                        <line x1="-2" y1="35" x2="-4" y2="35" stroke="#bbb" stroke-width="0.18"/>
+                        <text x="-4.5" y="17.5" font-size="2.6" text-anchor="middle"
+                              fill="#888" font-family="Inter, sans-serif" font-weight="600"
+                              transform="rotate(-90, -4.5, 17.5)">35 mm</text>
+
+                        <!-- Keychain border (outline only) -->
+                        <rect x="2" y="2" width="68" height="31" rx="4" ry="4"
+                              fill="none" stroke="#0a0a0a" stroke-width="0.4"/>
+
+                        <!-- Hole -->
+                        <circle cx="7" cy="17.5" r="2.5" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>
+
+                        <!-- Engraved text — outline only, font + content swapped at runtime -->
+                        <text id="keychain-text"
+                              x="42" y="17.5"
+                              font-family="'Press Start 2P', monospace"
+                              font-size="4"
+                              text-anchor="middle"
+                              dominant-baseline="central"
+                              fill="none" stroke="#0a0a0a" stroke-width="0.18"
+                              paint-order="stroke">YOUR NAME</text>
                     </svg>
                 </div>
-                <p class="preview-hint">Live preview of your keychain</p>
+                <p class="preview-hint">Actual size · 72 × 35 mm</p>
             </div>
 
             <div class="input-group">
@@ -117,17 +149,25 @@
                 <input
                     type="text"
                     id="name-input"
-                    placeholder="Type your name here..."
-                    maxlength="12"
+                    placeholder="Name + emoji 🎮"
+                    maxlength="20"
                     autocomplete="off"
                     spellcheck="false"
+                    inputmode="text"
                 >
-                <span class="char-count"><span id="char-current">0</span>/12</span>
+                <span class="char-count"><span id="char-current">0</span>/20</span>
+            </div>
+
+            <div class="font-picker">
+                <label class="font-picker-label">Font Style</label>
+                <div class="font-chips" id="font-chips">
+                    <!-- chips injected by app.js -->
+                </div>
             </div>
 
             <div class="price-tag">
                 <span class="price-label">Price</span>
-                <span class="price-amount">&#8377;99</span>
+                <span class="price-amount">&#8377;1</span> <!-- change amount -->
             </div>
 
             <button class="btn btn-primary" id="btn-pay" disabled>
@@ -174,7 +214,10 @@
     <!-- Razorpay SDK -->
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
+    <!-- Shared layout constants (must load before app.js) -->
+    <script src="js/keychain-layout.js?v=3"></script>
+
     <!-- App -->
-    <script src="js/app.js"></script>
+    <script src="js/app.js?v=3"></script>
 </body>
 </html>

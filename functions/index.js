@@ -18,16 +18,34 @@ function getRazorpay() {
     });
 }
 
+// Allowed font IDs — must mirror js/keychain-layout.js KEYCHAIN_FONTS
+const ALLOWED_FONT_IDS = ['pixel', 'bebas', 'montserrat', 'marker', 'pacifico'];
+const DEFAULT_FONT_ID = 'pixel';
+
 // ===== CREATE ORDER =====
 exports.createOrder = onCall({ secrets: [razorpayKeyId, razorpayKeySecret] }, async (request) => {
-    const { name } = request.data;
+    const { name, fontId } = request.data;
 
-    if (!name || typeof name !== 'string' || name.trim().length === 0 || name.trim().length > 12) {
-        throw new HttpsError('invalid-argument', 'Name must be 1-12 characters.');
+    if (!name || typeof name !== 'string') {
+        throw new HttpsError('invalid-argument', 'Name is required.');
     }
 
-    const cleanName = name.trim().toUpperCase();
-    const amountInPaise = 9900; // ₹99
+    const trimmed = name.trim();
+    // Count code points (handles emoji surrogate pairs)
+    const codePointLength = Array.from(trimmed).length;
+    if (codePointLength === 0 || codePointLength > 20) {
+        throw new HttpsError('invalid-argument', 'Name must be 1-20 characters.');
+    }
+
+    // Selective uppercase: Latin letters only, preserve emoji + symbols
+    const cleanName = trimmed.replace(/[a-z]/g, c => c.toUpperCase());
+
+    // Validate fontId — fall back to default if missing/invalid
+    const cleanFontId = (typeof fontId === 'string' && ALLOWED_FONT_IDS.includes(fontId))
+        ? fontId
+        : DEFAULT_FONT_ID;
+
+    const amountInPaise = 100; // ₹1.00 amount change
 
     const rzp = getRazorpay();
     const rzpOrder = await rzp.orders.create({
@@ -40,10 +58,11 @@ exports.createOrder = onCall({ secrets: [razorpayKeyId, razorpayKeySecret] }, as
     const orderRef = db.collection('orders').doc();
     await orderRef.set({
         name: cleanName,
+        fontId: cleanFontId,
         status: 'created',
         razorpay_order_id: rzpOrder.id,
         razorpay_payment_id: null,
-        amount: 99,
+        amount: 1,
         created_at: admin.firestore.FieldValue.serverTimestamp(),
         queue_position: null,
     });

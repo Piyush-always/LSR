@@ -1,3 +1,6 @@
+// ===== STATE =====
+let selectedFontId = window.DEFAULT_FONT_ID;
+
 // ===== DOM ELEMENTS =====
 const screens = {
     welcome: document.getElementById('screen-welcome'),
@@ -11,6 +14,7 @@ const btnPay = document.getElementById('btn-pay');
 const nameInput = document.getElementById('name-input');
 const charCurrent = document.getElementById('char-current');
 const keychainText = document.getElementById('keychain-text');
+const fontChips = document.getElementById('font-chips');
 const queueNumber = document.getElementById('queue-number');
 const successName = document.getElementById('success-name');
 
@@ -26,27 +30,57 @@ btnStart.addEventListener('click', () => {
     nameInput.focus();
 });
 
+// ===== FONT PICKER =====
+function buildFontChips() {
+    fontChips.innerHTML = '';
+    Object.values(window.KEYCHAIN_FONTS).forEach(font => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'font-chip' + (font.id === selectedFontId ? ' selected' : '');
+        chip.dataset.fontId = font.id;
+        chip.innerHTML = `
+            <span class="font-chip-sample" style="font-family: ${font.family};">Aa</span>
+            <span class="font-chip-name">${font.label}</span>
+        `;
+        chip.addEventListener('click', () => selectFont(font.id));
+        fontChips.appendChild(chip);
+    });
+}
+
+function selectFont(fontId) {
+    if (!window.KEYCHAIN_FONTS[fontId]) return;
+    selectedFontId = fontId;
+    fontChips.querySelectorAll('.font-chip').forEach(c => {
+        c.classList.toggle('selected', c.dataset.fontId === fontId);
+    });
+    renderKeychainText();
+}
+
 // ===== LIVE KEYCHAIN PREVIEW =====
+function renderKeychainText() {
+    const raw = nameInput.value.trim();
+    // Auto-uppercase Latin letters only — preserve emoji + symbols
+    const display = raw.replace(/[a-z]/g, c => c.toUpperCase()) || 'YOUR NAME';
+    const font = window.KEYCHAIN_FONTS[selectedFontId];
+
+    keychainText.textContent = display;
+    keychainText.setAttribute('font-family', font.family);
+    keychainText.setAttribute('font-size', font.fixedCapHeight);
+}
+
 nameInput.addEventListener('input', () => {
-    const name = nameInput.value.trim();
-    charCurrent.textContent = nameInput.value.length;
+    // Count code points (handles emoji surrogate pairs)
+    const len = Array.from(nameInput.value).length;
+    charCurrent.textContent = len;
 
-    // Update SVG preview
-    keychainText.textContent = name.toUpperCase() || 'YOUR NAME';
+    renderKeychainText();
 
-    // Scale text down if too long
-    const len = (name || 'YOUR NAME').length;
-    if (len > 10) {
-        keychainText.setAttribute('font-size', '16');
-    } else if (len > 7) {
-        keychainText.setAttribute('font-size', '19');
-    } else {
-        keychainText.setAttribute('font-size', '22');
-    }
-
-    // Enable/disable pay button
-    btnPay.disabled = name.length === 0;
+    btnPay.disabled = nameInput.value.trim().length === 0;
 });
+
+// Initialize chips on load
+buildFontChips();
+renderKeychainText();
 
 // ===== PAYMENT FLOW =====
 btnPay.addEventListener('click', () => {
@@ -62,7 +96,7 @@ async function initiatePayment(name) {
     try {
         // Step 1: Create order via Cloud Function
         const createOrder = functions.httpsCallable('createOrder');
-        const result = await createOrder({ name });
+        const result = await createOrder({ name, fontId: selectedFontId });
         const { orderId, firestoreId, amount, currency, keyId } = result.data;
 
         // Step 2: Open Razorpay checkout
@@ -71,7 +105,7 @@ async function initiatePayment(name) {
             amount: amount,
             currency: currency,
             name: 'Laser Keychain',
-            description: 'Custom keychain: "' + name.toUpperCase() + '"',
+            description: 'Custom keychain: "' + name + '"',
             order_id: orderId,
             prefill: {
                 name: name,
@@ -82,12 +116,10 @@ async function initiatePayment(name) {
                 color: '#00e5ff',
             },
             handler: async function (response) {
-                // Step 3: Verify payment via Cloud Function
                 await handlePaymentSuccess(response, firestoreId, name);
             },
             modal: {
                 ondismiss: function () {
-                    // User closed Razorpay modal — go back
                     showScreen('preview');
                     btnPay.disabled = false;
                 },
@@ -112,7 +144,6 @@ async function initiatePayment(name) {
 
 async function handlePaymentSuccess(response, firestoreId, name) {
     try {
-        // Verify payment server-side
         const verifyPayment = functions.httpsCallable('verifyPayment');
         const result = await verifyPayment({
             razorpay_order_id: response.razorpay_order_id,
@@ -123,8 +154,7 @@ async function handlePaymentSuccess(response, firestoreId, name) {
 
         const { queue_position } = result.data;
 
-        // Show success screen
-        successName.textContent = name.toUpperCase();
+        successName.textContent = name;
         queueNumber.textContent = '#' + queue_position;
         showScreen('success');
 
