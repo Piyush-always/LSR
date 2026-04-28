@@ -19,19 +19,16 @@ const path = require('path');
 const POSITION = {
 
     // ================================================================
-    //  THREE REFERENCE POINTS — all distances in millimeters
+    //  TWO REFERENCE POINTS — all distances in millimeters
     // ================================================================
     //
-    //   HOME   = (0, 0)    — fixed reference set when agent connects.
-    //                        It's whatever spot the laser head is
-    //                        sitting in at connect time.
+    //   HOME   = (0, 0)    — fixed reference set when the agent
+    //                        connects. It's whatever spot the laser
+    //                        head is sitting in at connect time.
+    //                        After every job the laser returns here.
     //
     //   START  = HOME + (startOffsetX, startOffsetY)
     //                      — where the keychain ACTUALLY gets engraved.
-    //
-    //   PARK   = HOME + (parkOffsetX, parkOffsetY)
-    //                      — where the laser sits between jobs while
-    //                        waiting for the next order.
     //
     // Direction convention (standard GRBL):
     //   +X = RIGHT      -X = LEFT
@@ -52,21 +49,6 @@ const POSITION = {
     // ---------------------------------------------------------------
     startOffsetX: 0,    // mm
     startOffsetY: 0,    // mm
-
-
-    // ---------------------------------------------------------------
-    // PARK — where the laser sits between jobs (distance from HOME)
-    // ---------------------------------------------------------------
-    //   0 / 0    →  park at HOME (same spot it started)
-    //   100 / 0  →  park 100 mm to the RIGHT of HOME
-    //   0 / 80   →  park 80 mm UP from HOME
-    //
-    // Tip: pick a spot that does NOT sit over the keychain, so you
-    // have space to reach in and grab the finished piece between
-    // jobs.
-    // ---------------------------------------------------------------
-    parkOffsetX: 0,     // mm
-    parkOffsetY: 0,     // mm
 };
 // #####################################################################
 // ##  End of easy-edit settings. Do not edit below this line unless  ##
@@ -367,10 +349,10 @@ function pathsToGcode(polylines, orderId, name, fontId) {
 
     lines.push('');
     lines.push('M5           ; laser off');
-    lines.push(`G0 X${POSITION.parkOffsetX.toFixed(3)} Y${POSITION.parkOffsetY.toFixed(3)}     ; move to PARK`);
+    lines.push('G0 X0 Y0     ; return to HOME');
     lines.push('G4 P1        ; wait 1 second before next job');
 
     return lines.join('\n');
 }
 
-module.exports = { textToGcode, SETTINGS, FONTS };
+module.exports = { textToGcode, SETTINGS, FONTS, POSITION };

@@ -1,132 +1,117 @@
 # Laser Printer Operator Guide
 
-This guide walks you through setting up the laser keychain printing system on the laptop connected to the **Creality CV-01 Pro** laser printer.
+This guide is everything you need to run the laser keychain system on the laptop connected to the **Creality CV-01 Pro** laser.
 
 ---
 
-## What You're Setting Up
+## 1. What this agent does
 
 ```
-Customer scans QR → pays on website → order lands in queue
-                                            ↓
-                    This laptop runs an agent that
-                    automatically picks up the order,
-                    generates G-code, and sends it to
-                    the laser printer to engrave.
+Customer scans QR → pays ₹1 on the website → order lands in the queue
+                                                       ↓
+                                  This laptop runs an agent that
+                                  picks up the order, generates the
+                                  G-code from the customer's name +
+                                  font choice, and engraves it on the
+                                  laser. After every print the laser
+                                  returns to HOME automatically.
 ```
 
-Your job: keep the agent running and the laser plugged in. The rest is automatic.
+Your job is simply: **keep the agent running** and **keep the laser plugged in**. Everything else is automatic.
 
 ---
 
-## What You Need
+## 2. Daily operation (TL;DR)
 
-| # | Item | Notes |
-|---|------|-------|
-| 1 | Windows laptop | Node.js 18 or newer installed |
-| 2 | Creality CV-01 Pro laser printer | Connected via USB |
-| 3 | Internet connection | For Firestore (the order database) |
-| 4 | The `printer-agent` folder | Copy this from the main project |
-| 5 | `service-account.json` file | Firebase credentials (see below) |
+Each morning:
 
----
-
-## Step 1 — Install Node.js
-
-If Node.js isn't already installed:
-
-1. Go to https://nodejs.org
-2. Download the **LTS version**
-3. Install it with default settings
-4. Verify in PowerShell/Command Prompt:
+1. Plug in and turn on the **Creality CV-01 Pro** laser.
+2. Open Command Prompt or PowerShell.
+3. ```
+   cd C:\laser-keychain\printer-agent
+   set LASER_PORT=COM8
+   node index.js
    ```
-   node --version
-   ```
-   You should see something like `v20.x.x`.
+   (replace `COM8` with whatever number your laser shows up as — see Section 3.5).
+4. Leave that terminal window open all day.
+5. Orders print automatically as customers pay.
+
+End of day:
+
+- Press `Ctrl + C` in the terminal.
+- Turn off the printer.
+
+That's it. Sections 3 onwards are only for first-time setup, calibration, and troubleshooting.
 
 ---
 
-## Step 2 — Copy the Printer Agent Folder
+## 3. First-time setup
 
-Copy the entire `printer-agent/` folder to this laptop. Place it somewhere easy to find, e.g.:
+### 3.1 Install Node.js
+
+If `node --version` doesn't print `v18.x.x` or higher in a fresh terminal:
+
+1. Go to https://nodejs.org → download the **LTS** version.
+2. Install with default settings (just keep clicking Next).
+3. Open a **new** terminal and confirm: `node --version`.
+
+### 3.2 Copy the printer-agent folder
+
+Copy the whole `printer-agent/` folder onto this laptop. The path used throughout this guide is:
 
 ```
 C:\laser-keychain\printer-agent\
 ```
 
-The folder should contain:
+The folder should contain (at least):
 
 ```
 printer-agent/
 ├── index.js
-├── generate-image.js
-├── image-to-gcode.js
+├── text-to-gcode.js
 ├── laser-sender.js
+├── jog-tool.py
+├── generate-image.js
 ├── package.json
-├── dashboard/
-└── output/   (will be created automatically)
+├── fonts/
+└── output/   (created automatically the first time)
 ```
 
----
+### 3.3 Get the Firebase service-account key
 
-## Step 3 — Get the Firebase Service Account Key
+The agent needs this file to read orders from the database.
 
-This file lets the agent talk to the order database.
+1. Go to https://console.firebase.google.com → open the **laser-inv** project.
+2. Click the gear icon → **Project Settings** → **Service accounts** tab.
+3. Click **Generate new private key** → confirm. A `.json` file downloads.
+4. Rename the file to **exactly** `service-account.json`.
+5. Move it into `C:\laser-keychain\printer-agent\`.
 
-1. Go to https://console.firebase.google.com
-2. Open the **laser-inv** project
-3. Click the gear icon → **Project Settings**
-4. Go to **Service accounts** tab
-5. Click **"Generate new private key"** → confirm → downloads a `.json` file
-6. **Rename** the downloaded file to exactly: `service-account.json`
-7. **Move** it into the `printer-agent/` folder
+> ⚠️ This file is a secret. Don't share it, don't commit it to GitHub, don't email it.
 
-> ⚠️ This file is a secret — do not share it or upload it anywhere public.
-
----
-
-## Step 4 — Install Dependencies
-
-Open **Command Prompt** or **PowerShell** and navigate to the printer-agent folder:
+### 3.4 Install dependencies (only once)
 
 ```bash
 cd C:\laser-keychain\printer-agent
-```
-
-Then install the required packages:
-
-```bash
 npm install
 ```
 
-This will take 1-3 minutes. You'll see progress messages. When it finishes, you'll have a `node_modules` folder.
+Takes 1–3 minutes. When it's done you'll have a `node_modules/` folder.
+
+### 3.5 Find the COM port
+
+1. Plug in and turn on the laser.
+2. Open **Device Manager** (right-click Start → Device Manager).
+3. Expand **Ports (COM & LPT)**.
+4. The laser shows up as something like `USB Serial Device (COM8)`. Note the number (could be COM3, COM5, COM8…).
+
+Use that number in the start command (Section 2 step 3).
 
 ---
 
-## Step 5 — Find Your Laser Printer's COM Port
+## 4. Expected behaviour during a print
 
-1. Plug the Creality CV-01 Pro into the laptop via USB
-2. Turn the printer on
-3. Open **Device Manager** (right-click Start → Device Manager)
-4. Expand **"Ports (COM & LPT)"**
-5. You'll see something like:
-   - `USB-SERIAL CH340 (COM3)`
-   - Or similar — note the **COM number** (could be COM3, COM4, COM5, etc.)
-
----
-
-## Step 6 — Run the Agent
-
-In the same terminal, run:
-
-```bash
-set LASER_PORT=COM3
-node index.js
-```
-
-Replace `COM3` with whatever COM port you found in Step 5.
-
-You should see:
+When you start the agent fresh, you should see:
 
 ```
 ========================================
@@ -135,150 +120,169 @@ You should see:
 ========================================
 
 [SERIAL] Available ports:
-  COM3 — USB-SERIAL CH340
+  COM8      USB Serial Device (COM8)
 
-[SERIAL] Attempting to connect to COM3...
+[SERIAL] Connecting to COM8 at 115200 baud...
+[SERIAL] Port opened. Waiting for GRBL banner...
+[SERIAL] GRBL banner received
+[SERIAL] Init sequence sent
 [READY] ✓ Laser printer connected!
+
+[CONFIG] HOME    = (0.000, 0.000)               (laser's position at connect time)
+[CONFIG] START   = HOME + (0.000, 0.000) mm
+[CONFIG] After each print the laser returns to HOME.
+[CONFIG] Edit START in printer-agent/text-to-gcode.js  POSITION block.
 
 Listening for new orders...
 ```
 
-**If the laser isn't connecting**, the agent will keep retrying every 10 seconds. Check:
-- Is the printer plugged in?
-- Is the printer turned on?
-- Did you use the correct COM port?
-
----
-
-## Step 7 — Test the Full Flow
-
-Now let's make sure everything works end-to-end.
-
-### 7.1 — Open the customer website
-
-On your **phone** (or another device), open:
-
-**https://laser-inv.web.app**
-
-### 7.2 — Create a test order
-
-1. Tap **"Get Started"**
-2. Type a short name like `TEST` or `PIYUSH`
-3. Tap **"Proceed to Pay"**
-
-### 7.3 — Pay using the Razorpay test UPI
-
-When Razorpay opens, choose **UPI** and enter this test UPI ID:
+When a customer pays, you'll see:
 
 ```
-success@razorpay
-```
-
-Tap continue and approve. This is a **fake test payment** — no real money is charged. It will succeed instantly in test mode.
-
-### 7.4 — Watch the agent process the order
-
-Switch back to the agent terminal. Within a few seconds you should see:
-
-```
-[QUEUE] New order: "TEST" (Position #1)
+[QUEUE] New order: "PIYUSH" (Position #4)
 
 [PRINT] ============================
-[PRINT] Printing: "TEST"
-[PRINT] Queue Position: #1
+[PRINT] Printing: "PIYUSH"
+[PRINT] Queue Position: #4
+[PRINT] Start position: (0.000, 0.000) mm    (returns to HOME after)
 [PRINT] ============================
+[LASER] Current position: (0.000, 0.000) mm
 [STEP 1] Generating keychain image...
-[IMAGE] Generated: ...output\keychain_xxxxx_TEST.png
-[STEP 2] Converting to G-code...
-[GCODE] Generated: ...output\keychain_xxxxx.gcode (3000+ lines)
+[STEP 2] Generating vector G-code (font=pixel)...
+[GCODE] Generated: ...keychain_xxxxx.gcode (~120 lines)
 [STEP 3] Sending to laser printer...
-[LASER] Progress: 10% (300/3000 commands)
-[LASER] Progress: 50% (1500/3000 commands)
-[LASER] Progress: 100% (3000/3000 commands)
-[DONE] ✓ Keychain for "TEST" completed!
+[SERIAL] Sending 120 G-code commands...
+[LASER] Progress: 100% (120/120 commands)
+[LASER] Position after print: (0.000, 0.000) mm
+[DONE] ✓ Keychain for "PIYUSH" completed!
 ```
 
-### 7.5 — Verify the laser actually engraved
+The two key sanity numbers to watch:
 
-The laser should physically engrave the keychain. If the terminal says **"Progress: 100%"** but nothing engraved, check:
+- **Current position** before STEP 1 — should match HOME (`0, 0`). If it doesn't, the gantry was bumped or drifted.
+- **Position after print** — should also match HOME. If it doesn't, the laser didn't return cleanly; flag this to the dev.
 
-- Is the laser head moving?
-- Is the keychain positioned correctly under the laser?
-- Is the laser focus correct?
-- Is the laser safety key / button enabled?
+### What's normal vs what to flag
+
+| Moment | What happens | Is it normal? |
+|--------|--------------|---------------|
+| Agent starts | Lists ports, connects, prints `[CONFIG]`, then "Listening for new orders..." | Yes |
+| First job after start | Laser jumps to START, engraves keychain, returns to HOME | Yes |
+| Job 2, 3, 4… | Each new job starts from HOME (where the last one ended). Reproducible — unless the gantry was bumped or motors lost steps | Yes |
+| Laser drifts ~1–2 mm over many prints | Mechanical step loss — needs belt tension or slower travel | **Not normal — flag to dev** |
+| Order disappears from queue mid-print | Network blip — agent reverts it to `queued`. If status stays `printing`, manually change it back in Firebase console | Sometimes |
+| You unplug the laser USB during a print | Agent reverts the order, retries every 10 s, resumes when reconnected | Yes |
+| `[LASER] Progress: 100%` shows but the laser is still moving | Normal! GRBL says `ok` when a command is **queued**, not when it's executed. Wait a few seconds for the head to actually finish. | Yes |
 
 ---
 
-## Daily Operation
+## 5. The two reference points: HOME and START
 
-Each morning:
+```
+                  +Y (back / away from you)
+                       ↑
+                       |
+              HOME ────►      ← where the head sits when the agent connects.
+        (0, 0)       │            After every job the head returns here.
+                       |
+                  ◄──── (engrave path)
+                       |
+                       |
+                       └────► START
+                              (HOME + startOffsetX, startOffsetY)
+                              ← where the keychain is actually engraved
+                                +X (right) →
+```
 
-1. Plug in and turn on the laser printer
-2. Open terminal, go to the folder:
-   ```bash
-   cd C:\laser-keychain\printer-agent
+- **HOME** is set automatically when the agent connects to the laser. Whatever spot the head is in at that moment becomes (0, 0) for the rest of the session.
+- **START** is HOME shifted by `startOffsetX` and `startOffsetY` (millimeters). These two numbers live at the top of `printer-agent/text-to-gcode.js` in the `POSITION` block.
+
+To change HOME, jog the head to a new spot, **stop the agent (Ctrl+C)**, and restart `node index.js`. The next launch will use the new spot as HOME.
+
+---
+
+## 6. Calibrating with the jog tool
+
+Use this when you need to find the right `startOffsetX/Y` for your keychain jig.
+
+1. Stop the agent: `Ctrl + C`.
+2. Run the jog tool:
    ```
-3. Start the agent:
-   ```bash
-   set LASER_PORT=COM3
-   node index.js
+   python jog-tool.py COM8
    ```
-4. Leave this terminal window open all day
-5. Orders will print automatically as customers pay
+   (use your COM number).
+3. Use **arrow keys** to move the head. Step size cycles with `+` / `-` (1 → 5 → 10 → 25 mm).
+4. Press **`L`** to turn the laser on at low power for sighting (don't put your eye near the beam).
+5. Move the head to the spot where you want engraving to start. Read the X/Y values off the live status line.
+6. Open `printer-agent/text-to-gcode.js`, find the `POSITION` block at the top, and plug those numbers into:
+   ```js
+   startOffsetX: <your X>,
+   startOffsetY: <your Y>,
+   ```
+7. Save the file. Press **`Q`** in the jog tool to quit.
+8. Restart the agent: `node index.js`. The new START values are now active.
 
-At the end of the day:
-- Press **Ctrl + C** in the terminal to stop the agent
-- Turn off the printer
-
----
-
-## Troubleshooting
-
-### "Error: Cannot find module 'firebase-admin'"
-You skipped Step 4. Run `npm install` in the `printer-agent` folder.
-
-### "Opening COMx: File not found"
-- Wrong COM port. Re-check in Device Manager.
-- Printer is not plugged in or not powered on.
-
-### "Cannot find module './service-account.json'"
-You skipped Step 3. Download the service account key from Firebase and save it as `service-account.json` in the `printer-agent` folder.
-
-### The agent runs but orders aren't appearing
-- Is the laptop connected to the internet?
-- Check the terminal — it should say "Listening for new orders..."
-- Make sure you paid via test UPI `success@razorpay` on the website
-
-### Laser says "Progress: 100%" but nothing engraved
-- Laser safety interlock not released (button/key)
-- Laser head focus is wrong
-- Laser power setting too low (contact dev)
-
-### An order got stuck in "printing" but the agent was stopped
-The order will stay as "printing" in the database. You can manually change it back to "queued" via the Firebase console, or leave it — it won't affect new orders.
+Python missing? `pip install pyserial pynput` (one-time).
 
 ---
 
-## What to Share with the Dev if Something Breaks
+## 7. Troubleshooting
 
-If you hit a problem, share these with the dev team:
+### `Error: Cannot find module 'firebase-admin'`
+You skipped `npm install`. Run it inside `printer-agent/` (Section 3.4).
 
-1. **Screenshot of the terminal** — the exact error message
-2. **Order name** that failed (if applicable)
-3. **What you were doing** when it happened
-4. **Did the laser printer respond at all?** (head moved, power on, etc.)
+### `Opening COM8: File not found` or `Access denied`
+- Wrong COM port. Re-check Device Manager (Section 3.5).
+- Laser is unplugged or powered off.
+- Another program is holding the port (LightBurn, an old `node` process, the jog tool). Close them.
+
+### `Cannot find module './service-account.json'`
+You skipped Section 3.3. Download the key from Firebase and put it in `printer-agent/`.
+
+### Agent runs but no orders ever appear
+- Is the laptop actually on the internet?
+- The terminal should say `Listening for new orders...`. If it says something else, share the screenshot with the dev.
+- Place a real ₹1 test order yourself via UPI/card on https://laser-inv.web.app to confirm.
+
+### Laser says `Progress: 100%` but nothing engraved
+- Safety interlock not released — check the key/button on the printer.
+- Laser focus is wrong — re-focus the head.
+- Laser power configured too low — flag to dev.
+
+### Drift between prints (engraving slowly walks across the bed)
+Mechanical step loss. Two fixes:
+1. Tighten X belt, Y belt, and motor pulley grub screws.
+2. Lower `travelRate` in `text-to-gcode.js` from `3000` to `2000` mm/min.
+
+### An order is stuck in `printing` because the agent crashed
+Open the Firebase console → Firestore → `orders` → find the doc → change `status` from `printing` back to `queued`. The agent will pick it up next time.
+
+### Laser fires once and stops mid-print
+GRBL "laser mode" got disabled. The init sequence already sets `$32=1` on every connect — restarting the agent should re-enable it. If it persists, flag to dev.
 
 ---
 
-## Quick Reference
+## 8. What to share with the dev when something breaks
+
+1. **Screenshot of the terminal** — the exact error and the lines just before it.
+2. **Order name** that failed (if applicable).
+3. **What you were doing** at the moment.
+4. **Did the laser physically respond at all?** (head moved, beam fired, etc.)
+
+The position logging (`[LASER] Current position: …` and `[LASER] Position after print: …`) is gold — those numbers tell the dev whether drift is the issue.
+
+---
+
+## 9. Quick reference
 
 | Thing | Value |
 |-------|-------|
 | Customer website | https://laser-inv.web.app |
 | Firebase Console | https://console.firebase.google.com |
-| Test UPI for payments | `success@razorpay` |
-| Start command | `set LASER_PORT=COM3 && node index.js` |
+| Price per keychain | **₹1 (real payment, live mode)** |
+| Start command | `set LASER_PORT=COM8 && node index.js` |
 | Stop command | `Ctrl + C` |
-| Price per keychain | ₹99 |
-| Laser printer | Creality CV-01 Pro |
+| Jog tool command | `python jog-tool.py COM8` |
+| Laser printer | Creality CV-01 Pro (ESP32 USB) |
 | Baud rate | 115200 |
+| START offset config | `printer-agent/text-to-gcode.js` → `POSITION` block at the top |

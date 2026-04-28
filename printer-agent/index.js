@@ -2,11 +2,11 @@ const admin = require('firebase-admin');
 const path = require('path');
 const { generateKeychainImage } = require('./generate-image');
 const { imageToGcode } = require('./image-to-gcode');
-const { textToGcode } = require('./text-to-gcode');
+const { textToGcode, POSITION } = require('./text-to-gcode');
 
 // Engraving mode: 'vector' (filled letters via opentype) or 'raster' (pixel scan)
 const ENGRAVING_MODE = process.env.ENGRAVING_MODE || 'vector';
-const { connect, sendGcodeFile, listPorts, disconnect, SERIAL_CONFIG } = require('./laser-sender');
+const { connect, sendGcodeFile, listPorts, disconnect, getCurrentPosition, SERIAL_CONFIG } = require('./laser-sender');
 
 // ===== CONFIGURATION =====
 const SERVICE_ACCOUNT_PATH = path.join(__dirname, 'service-account.json');
@@ -38,8 +38,21 @@ async function start() {
     // Block until the laser is connected. Without it, we do not touch the queue.
     await ensureLaserConnected();
 
+    // Print the configured reference points so the operator can verify them.
+    printConfigBanner();
+
     // Once connected, start listening for orders
     startQueueListener();
+}
+
+function printConfigBanner() {
+    const sx = POSITION.startOffsetX.toFixed(3);
+    const sy = POSITION.startOffsetY.toFixed(3);
+    console.log(`[CONFIG] HOME    = (0.000, 0.000)               (laser's position at connect time)`);
+    console.log(`[CONFIG] START   = HOME + (${sx}, ${sy}) mm`);
+    console.log(`[CONFIG] After each print the laser returns to HOME.`);
+    console.log(`[CONFIG] Edit START in printer-agent/text-to-gcode.js  POSITION block.`);
+    console.log('');
 }
 
 // ===== LASER CONNECTION MANAGEMENT =====
@@ -136,13 +149,20 @@ async function processQueue() {
 // ===== PROCESS SINGLE ORDER =====
 // Throws on any failure — caller is responsible for reverting the order.
 async function processOrder(order) {
+    const sx = POSITION.startOffsetX.toFixed(3);
+    const sy = POSITION.startOffsetY.toFixed(3);
+
     console.log(`\n[PRINT] ============================`);
     console.log(`[PRINT] Printing: "${order.name}"`);
     console.log(`[PRINT] Queue Position: #${order.queue_position}`);
+    console.log(`[PRINT] Start position: (${sx}, ${sy}) mm    (returns to HOME after)`);
     console.log(`[PRINT] ============================`);
 
     // Mark as printing
     await db.collection('orders').doc(order.id).update({ status: 'printing' });
+
+    // Sanity: where is the laser physically right now?
+    await logCurrentPosition('Current position');
 
     // Step 1: Generate keychain preview image (used by dashboard)
     console.log('[STEP 1] Generating keychain image...');
@@ -168,12 +188,26 @@ async function processOrder(order) {
     });
     console.log(''); // newline after progress
 
+    // Sanity: did the laser actually return to HOME?
+    await logCurrentPosition('Position after print');
+
     // Only reached if laser actually finished
     await db.collection('orders').doc(order.id).update({
         status: 'done',
         printed_at: admin.firestore.FieldValue.serverTimestamp(),
     });
     console.log(`[DONE] ✓ Keychain for "${order.name}" completed!\n`);
+}
+
+// Best-effort position log — never throws, just prints a warning if GRBL
+// doesn't respond in time. Used purely for operator visibility.
+async function logCurrentPosition(label) {
+    try {
+        const { x, y } = await getCurrentPosition();
+        console.log(`[LASER] ${label}: (${x.toFixed(3)}, ${y.toFixed(3)}) mm`);
+    } catch (err) {
+        console.log(`[LASER] ${label}: (unable to read — ${err.message})`);
+    }
 }
 
 // ===== HELPERS =====

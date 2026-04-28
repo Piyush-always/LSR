@@ -18,5 +18,8 @@ firebase.initializeApp(firebaseConfig);
 // Initialize Cloud Functions
 const functions = firebase.functions();
 
+// Initialize Firestore (used for live queue indicator on the success screen)
+const db = firebase.firestore();
+
 // Uncomment the line below to use Firebase emulator during local development
 // functions.useEmulator("localhost", 5001);

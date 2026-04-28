@@ -290,4 +290,44 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-module.exports = { connect, sendCommand, sendGcodeFile, listPorts, disconnect, SERIAL_CONFIG };
+/**
+ * Query GRBL for the current machine position. Sends `?` and parses the
+ * `<state|MPos:x,y,z|...>` status report. Returns { x, y } in millimeters.
+ *
+ * Uses a temporary parser listener so it doesn't conflict with the global
+ * one. Resolves on the first matching status line; rejects after timeout.
+ */
+function getCurrentPosition({ timeoutMs = 1000 } = {}) {
+    return new Promise((resolve, reject) => {
+        if (!serialPort || !serialPort.isOpen || !parser) {
+            return reject(new Error('Serial port not open'));
+        }
+
+        let done = false;
+        const onData = (data) => {
+            const line = data.toString().trim();
+            // GRBL status report:  <Idle|MPos:0.000,0.000,0.000|FS:0,0>
+            const m = line.match(/<[^|]+\|MPos:(-?\d+\.\d+),(-?\d+\.\d+),(-?\d+\.\d+)/);
+            if (m) {
+                if (done) return;
+                done = true;
+                clearTimeout(timer);
+                parser.removeListener('data', onData);
+                resolve({ x: parseFloat(m[1]), y: parseFloat(m[2]) });
+            }
+        };
+
+        const timer = setTimeout(() => {
+            if (done) return;
+            done = true;
+            parser.removeListener('data', onData);
+            reject(new Error('Position query timeout'));
+        }, timeoutMs);
+
+        parser.on('data', onData);
+        // `?` is GRBL's real-time status query — no newline, single byte
+        serialPort.write('?');
+    });
+}
+
+module.exports = { connect, sendCommand, sendGcodeFile, listPorts, disconnect, getCurrentPosition, SERIAL_CONFIG };
