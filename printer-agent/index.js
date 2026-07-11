@@ -11,6 +11,7 @@ const { connect, sendGcodeFile, listPorts, disconnect, getCurrentPosition, SERIA
 // ===== CONFIGURATION =====
 const SERVICE_ACCOUNT_PATH = path.join(__dirname, 'service-account.json');
 const RECONNECT_INTERVAL_MS = 10000; // 10 seconds
+const BETWEEN_JOBS_DELAY_MS = 5000;  // pause before pulling the next queued order (operator swap time)
 
 // Initialize Firebase Admin
 const serviceAccount = require(SERVICE_ACCOUNT_PATH);
@@ -106,6 +107,7 @@ async function processQueue() {
     }
 
     isProcessing = true;
+    let firstJob = true;
 
     try {
         while (laserConnected) {
@@ -119,6 +121,15 @@ async function processQueue() {
                 console.log('[QUEUE] No more orders. Waiting...\n');
                 break;
             }
+
+            // Give the operator a few seconds to swap the keychain blank
+            // before the next job starts. Skipped for the very first job
+            // of a batch (laser already idle / blank already in place).
+            if (!firstJob && BETWEEN_JOBS_DELAY_MS > 0) {
+                console.log(`[QUEUE] Pausing ${BETWEEN_JOBS_DELAY_MS / 1000}s before next job — swap the keychain now.\n`);
+                await sleep(BETWEEN_JOBS_DELAY_MS);
+            }
+            firstJob = false;
 
             const doc = snapshot.docs[0];
             const order = { id: doc.id, ...doc.data() };
