@@ -60,3 +60,31 @@ window.KEYCHAIN_FONTS = {
 };
 
 window.DEFAULT_FONT_ID = 'pixel';
+
+// ---------------------------------------------------------------------
+// IMAGE keychain — engrave area + resolution.
+// ⚠️  KEEP IN SYNC with printer-agent/image-to-gcode.js  IMAGE_AREA / SETTINGS
+//
+// Rectangle (mm) inside the keychain border, to the RIGHT of the hole, where
+// an uploaded image is engraved. Same coordinate system as the SVG preview:
+// origin at the keychain's top-left corner, +x right, +y down. The client
+// fitter and the laser rasteriser BOTH use these numbers so the on-screen
+// black/white preview matches what actually burns (WYSIWYG).
+// ---------------------------------------------------------------------
+window.KEYCHAIN_IMAGE_AREA = {
+    x: 13,       // mm — left edge (clears the hole at x≈7 + border)
+    y: 4,        // mm — top edge (inside the border)
+    width: 56,   // mm — engrave area width
+    height: 27,  // mm — engrave area height
+};
+
+// Engrave resolution — mm per pixel. Client renders the processed bitmap at
+// this scale and the agent rasterises at the same scale. Must match
+// printer-agent/image-to-gcode.js SETTINGS.pixelSize.
+window.ENGRAVE_PIXEL_SIZE_MM = 0.15;
+
+// Upload limits (mirrored in storage.rules + functions/index.js validation).
+window.IMAGE_UPLOAD = {
+    maxBytes: 5 * 1024 * 1024,  // 5 MB
+    accept: 'image/png,image/jpeg,image/webp',
+};

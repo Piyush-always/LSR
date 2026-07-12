@@ -1,5 +1,6 @@
 const admin = require('firebase-admin');
 const path = require('path');
+const fs = require('fs');
 const { generateKeychainImage } = require('./generate-image');
 const { imageToGcode } = require('./image-to-gcode');
 const { textToGcode, POSITION } = require('./text-to-gcode');
@@ -12,11 +13,15 @@ const { connect, sendGcodeFile, listPorts, disconnect, getCurrentPosition, SERIA
 const SERVICE_ACCOUNT_PATH = path.join(__dirname, 'service-account.json');
 const RECONNECT_INTERVAL_MS = 10000; // 10 seconds
 const BETWEEN_JOBS_DELAY_MS = 5000;  // pause before pulling the next queued order (operator swap time)
+// Cloud Storage bucket that holds uploaded image-order bitmaps. Must match the
+// project's Storage bucket (js/firebase-config.js → storageBucket).
+const STORAGE_BUCKET = process.env.STORAGE_BUCKET || 'laser-inv.firebasestorage.app';
 
 // Initialize Firebase Admin
 const serviceAccount = require(SERVICE_ACCOUNT_PATH);
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
+    storageBucket: STORAGE_BUCKET,
 });
 
 const db = admin.firestore();
@@ -162,9 +167,10 @@ async function processQueue() {
 async function processOrder(order) {
     const sx = POSITION.startOffsetX.toFixed(3);
     const sy = POSITION.startOffsetY.toFixed(3);
+    const displayName = order.name || (order.mode === 'image' ? 'image upload' : 'keychain');
 
     console.log(`\n[PRINT] ============================`);
-    console.log(`[PRINT] Printing: "${order.name}"`);
+    console.log(`[PRINT] Printing: "${displayName}" (${order.mode || 'text'})`);
     console.log(`[PRINT] Queue Position: #${order.queue_position}`);
     console.log(`[PRINT] Start position: (${sx}, ${sy}) mm    (returns to HOME after)`);
     console.log(`[PRINT] ============================`);
@@ -175,20 +181,30 @@ async function processOrder(order) {
     // Sanity: where is the laser physically right now?
     await logCurrentPosition('Current position');
 
-    // Step 1: Generate keychain preview image (used by dashboard)
-    console.log('[STEP 1] Generating keychain image...');
-    generateKeychainImage(order.name, order.id);
-
-    // Step 2: Generate G-code (vector or raster mode)
+    // Generate G-code — branch on the order type.
     let gcodePath;
-    if (ENGRAVING_MODE === 'vector') {
-        const fontId = order.fontId || 'pixel';
-        console.log(`[STEP 2] Generating vector G-code (font=${fontId})...`);
-        gcodePath = await textToGcode(order.name, order.id, fontId);
+    if (order.mode === 'image') {
+        // Uploaded-image order: fetch the pre-processed black/white bitmap from
+        // Cloud Storage and rasterise it into the keychain's image area.
+        console.log('[STEP 1] Downloading uploaded image...');
+        const localImage = await downloadPrintImage(order);
+        console.log('[STEP 2] Generating raster G-code from image...');
+        gcodePath = await imageToGcode(localImage, order.id);
     } else {
-        console.log('[STEP 2] Generating raster G-code...');
-        const imagePath = generateKeychainImage(order.name, order.id);
-        gcodePath = await imageToGcode(imagePath, order.id);
+        // Text/name order (mode 'text' or legacy orders with no mode field).
+        const label = order.name || '(unnamed)';
+        console.log('[STEP 1] Generating keychain image...');
+        generateKeychainImage(label, order.id);
+
+        if (ENGRAVING_MODE === 'vector') {
+            const fontId = order.fontId || 'pixel';
+            console.log(`[STEP 2] Generating vector G-code (font=${fontId})...`);
+            gcodePath = await textToGcode(label, order.id, fontId);
+        } else {
+            console.log('[STEP 2] Generating raster G-code...');
+            const imagePath = generateKeychainImage(label, order.id);
+            gcodePath = await imageToGcode(imagePath, order.id);
+        }
     }
 
     // Step 3: Send to laser — must succeed or we throw
@@ -207,7 +223,24 @@ async function processOrder(order) {
         status: 'done',
         printed_at: admin.firestore.FieldValue.serverTimestamp(),
     });
-    console.log(`[DONE] ✓ Keychain for "${order.name}" completed!\n`);
+    console.log(`[DONE] ✓ Keychain for "${displayName}" completed!\n`);
+}
+
+// Download an image order's pre-processed B&W bitmap from Cloud Storage to a
+// local file for rasterising. Throws on missing path / download failure (the
+// caller reverts the order to queued and retries).
+async function downloadPrintImage(order) {
+    if (!order.printImagePath) {
+        throw new Error('Image order is missing printImagePath');
+    }
+    const outputDir = path.join(__dirname, 'output');
+    if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+    }
+    const localPath = path.join(outputDir, `upload_${order.id}.png`);
+    await admin.storage().bucket().file(order.printImagePath).download({ destination: localPath });
+    console.log(`[IMAGE] Downloaded ${order.printImagePath} → ${localPath}`);
+    return localPath;
 }
 
 // Best-effort position log — never throws, just prints a warning if GRBL

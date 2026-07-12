@@ -19,6 +19,14 @@ Customer scans QR → pays ₹1 on the website → order lands in the queue
 
 Your job is simply: **keep the agent running** and **keep the laser plugged in**. Everything else is automatic.
 
+**Two kinds of orders** now come through, and the agent handles both automatically:
+- **Name orders** — engraved as vector text (a name + font the customer chose).
+- **Image orders** — the customer uploaded a logo/line-art image; the agent downloads the
+  pre-processed black/white bitmap and raster-engraves it. You'll see `(image)` next to the
+  job in the log, and these can take **noticeably longer** to engrave than a name. Uploaded
+  images are auto-screened for inappropriate content before payment, so nothing offensive
+  should reach the laser.
+
 ---
 
 ## 2. Daily operation (TL;DR)

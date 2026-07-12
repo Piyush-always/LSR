@@ -21,5 +21,8 @@ const functions = firebase.functions();
 // Initialize Firestore (used for live queue indicator on the success screen)
 const db = firebase.firestore();
 
+// Initialize Cloud Storage (used to upload keychain images for image orders)
+const storage = firebase.storage();
+
 // Uncomment the line below to use Firebase emulator during local development
 // functions.useEmulator("localhost", 5001);
