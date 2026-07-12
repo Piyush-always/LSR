@@ -14,5 +14,12 @@ service cloud.firestore {
     match /meta/counter {
       allow read, write: if false;
     }
+
+    // Printer agent status/heartbeat — read-only for the website debug panel.
+    // The agent writes it via the Admin SDK (which bypasses these rules).
+    match /system/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
   }
 }

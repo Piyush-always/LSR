@@ -30,6 +30,44 @@ const db = admin.firestore();
 let laserConnected = false;
 let isProcessing = false;
 let firestoreUnsubscribe = null;
+let currentJob = null;     // { orderId, name, mode, position, startedAt, progress }
+let lastProgressAt = 0;    // throttle for progress heartbeats
+
+// ===== SYSTEM STATUS (published to Firestore for the website debug panel) =====
+// The website can't see this laptop directly, so we publish printer connection,
+// current job, and a rolling log to system/printer. Heartbeat lets the website
+// detect "agent offline" when updates go stale. All writes are best-effort and
+// must never block or break printing.
+const STATUS_DOC = db.doc('system/printer');
+const HEARTBEAT_MS = 15000;   // ~5.8k writes/day if run 24h — within free tier
+const MAX_EVENTS = 20;
+const recentEvents = [];      // rolling in-memory log tail, newest first
+let heartbeatTimer = null;
+
+async function publishStatus(fields) {
+    try {
+        await STATUS_DOC.set({
+            ...fields,
+            connected: laserConnected,
+            port: SERIAL_CONFIG.port,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+    } catch (err) {
+        console.error(`[STATUS] publish failed: ${err.message}`);
+    }
+}
+
+function logEvent(msg) {
+    recentEvents.unshift({ t: Date.now(), msg });
+    if (recentEvents.length > MAX_EVENTS) recentEvents.length = MAX_EVENTS;
+    publishStatus({ events: recentEvents });
+}
+
+function startHeartbeat() {
+    if (heartbeatTimer) return;
+    publishStatus({});   // immediate first beat
+    heartbeatTimer = setInterval(() => publishStatus({}), HEARTBEAT_MS);
+}
 
 // ===== STARTUP =====
 async function start() {
@@ -38,6 +76,10 @@ async function start() {
     console.log('  Creality CV-01 Pro');
     console.log('========================================');
     console.log('');
+
+    // Start reporting status to the website right away (shows "connecting").
+    startHeartbeat();
+    logEvent('Agent started');
 
     await listPorts();
 
@@ -69,9 +111,12 @@ async function ensureLaserConnected() {
             await connect();
             laserConnected = true;
             console.log('[READY] ✓ Laser printer connected!\n');
+            logEvent(`Laser connected on ${SERIAL_CONFIG.port}`);
+            await publishStatus({ lastError: null });
             return;
         } catch (err) {
             console.error(`[WARN] Could not connect: ${err.message}`);
+            await publishStatus({ lastError: err.message });
             console.error(`[WARN] Make sure the Creality CV-01 Pro is plugged in.`);
             console.error(`[WARN] Current port: ${SERIAL_CONFIG.port}`);
             console.error(`[WARN] Set correct port with: set LASER_PORT=COMx`);
@@ -147,11 +192,15 @@ async function processQueue() {
                 console.error('[FAIL] Reverting order back to queued...');
 
                 await db.collection('orders').doc(order.id).update({ status: 'queued' });
+                currentJob = null;
+                await publishStatus({ current: null, lastError: err.message });
+                logEvent(`Failed: ${err.message}`);
 
                 // If it was a serial/connection error, mark laser disconnected and reconnect
                 if (isSerialError(err)) {
                     laserConnected = false;
                     console.error('[FAIL] Laser connection lost. Will try to reconnect...\n');
+                    logEvent('Laser connection lost — reconnecting');
                     reconnectInBackground();
                 }
                 break; // exit processing loop
@@ -177,6 +226,17 @@ async function processOrder(order) {
 
     // Mark as printing
     await db.collection('orders').doc(order.id).update({ status: 'printing' });
+    currentJob = {
+        orderId: order.id,
+        name: displayName,
+        mode: order.mode || 'text',
+        position: order.queue_position || null,
+        startedAt: Date.now(),
+        progress: 0,
+    };
+    lastProgressAt = 0;
+    await publishStatus({ current: currentJob });
+    logEvent(`Printing #${order.queue_position} — ${displayName}`);
 
     // Sanity: where is the laser physically right now?
     await logCurrentPosition('Current position');
@@ -212,6 +272,15 @@ async function processOrder(order) {
     await sendGcodeFile(gcodePath, (current, total) => {
         const percent = Math.round((current / total) * 100);
         process.stdout.write(`\r[LASER] Progress: ${percent}% (${current}/${total} commands)`);
+        // Publish progress to the website (throttled: at most every 2s, plus 100%).
+        if (currentJob) {
+            currentJob.progress = percent;
+            const now = Date.now();
+            if (percent >= 100 || now - lastProgressAt > 2000) {
+                lastProgressAt = now;
+                publishStatus({ current: currentJob }); // fire-and-forget
+            }
+        }
     });
     console.log(''); // newline after progress
 
@@ -223,6 +292,9 @@ async function processOrder(order) {
         status: 'done',
         printed_at: admin.firestore.FieldValue.serverTimestamp(),
     });
+    currentJob = null;
+    await publishStatus({ current: null });
+    logEvent(`Done — ${displayName}`);
     console.log(`[DONE] ✓ Keychain for "${displayName}" completed!\n`);
 }
 
@@ -273,9 +345,13 @@ function sleep(ms) {
 }
 
 // ===== GRACEFUL SHUTDOWN =====
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
     console.log('\n[EXIT] Shutting down...');
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
     if (firestoreUnsubscribe) firestoreUnsubscribe();
+    laserConnected = false;
+    // Best-effort: mark the agent offline so the website updates immediately.
+    try { await publishStatus({ current: null }); } catch (e) { /* ignore */ }
     disconnect();
     process.exit(0);
 });
