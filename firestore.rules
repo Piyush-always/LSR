@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Orders collection
+    match /orders/{orderId} {
+      // Allow reading orders (for printer dashboard)
+      // All writes go through Cloud Functions
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Counter for queue position
+    match /meta/counter {
+      allow read, write: if false;
+    }
+
+    // Printer agent status/heartbeat — read-only for the website debug panel.
+    // The agent writes it via the Admin SDK (which bypasses these rules).
+    match /system/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

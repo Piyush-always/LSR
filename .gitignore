@@ -1,0 +1,11 @@
+node_modules/
+functions/node_modules/
+printer-agent/node_modules/
+
+# Environment & secrets
+functions/.env
+printer-agent/service-account.json
+
+# Firebase
+.firebase/
+*.log
