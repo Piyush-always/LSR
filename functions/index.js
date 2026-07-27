@@ -36,9 +36,17 @@ function getRazorpay() {
 const ALLOWED_FONT_IDS = ['pixel', 'bebas', 'montserrat', 'marker', 'pacifico'];
 const DEFAULT_FONT_ID = 'pixel';
 
+// Allowed shapes — must mirror js/keychain-layout.js KEYCHAIN_SHAPES
+const ALLOWED_SHAPES = ['rectangle', 'circle', 'heart'];
+const DEFAULT_SHAPE = 'rectangle';
+
+function validateShape(shape) {
+    return (typeof shape === 'string' && ALLOWED_SHAPES.includes(shape)) ? shape : DEFAULT_SHAPE;
+}
+
 // Validate + normalise a text-keychain request. Returns the order fields.
 function buildTextOrder(data) {
-    const { name, fontId } = data;
+    const { name, fontId, shape } = data;
     if (!name || typeof name !== 'string') {
         throw new HttpsError('invalid-argument', 'Name is required.');
     }
@@ -54,10 +62,11 @@ function buildTextOrder(data) {
     const cleanFontId = (typeof fontId === 'string' && ALLOWED_FONT_IDS.includes(fontId))
         ? fontId
         : DEFAULT_FONT_ID;
+    const cleanShape = validateShape(shape);
 
     return {
-        fields: { mode: 'text', name: cleanName, fontId: cleanFontId },
-        rzpNotes: { mode: 'text', name: cleanName },
+        fields: { mode: 'text', name: cleanName, fontId: cleanFontId, shape: cleanShape },
+        rzpNotes: { mode: 'text', name: cleanName, shape: cleanShape },
     };
 }
 
@@ -65,7 +74,7 @@ function buildTextOrder(data) {
 // Returns the order fields. Moderation runs HERE (before any Razorpay charge)
 // so a rejected image never costs the customer money.
 async function buildImageOrder(data) {
-    const { originalImagePath, printImagePath } = data;
+    const { originalImagePath, printImagePath, shape } = data;
 
     // Both paths must be strings under the uploads/ prefix — this is the only
     // location clients can write (see storage.rules) and prevents the function
@@ -101,16 +110,19 @@ async function buildImageOrder(data) {
             'This image can’t be used for a keychain. Please choose a different one.');
     }
 
+    const cleanShape = validateShape(shape);
+
     return {
         fields: {
             mode: 'image',
+            shape: cleanShape,
             name: null,
             fontId: null,
             originalImagePath,
             printImagePath,
             moderation: { adult: safe.adult, violence: safe.violence, racy: safe.racy },
         },
-        rzpNotes: { mode: 'image' },
+        rzpNotes: { mode: 'image', shape: cleanShape },
     };
 }
 

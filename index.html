@@ -72,6 +72,63 @@
         </div>
     </section>
 
+    <!-- Screen 1.5: Choose Shape -->
+    <section id="screen-shape" class="screen">
+        <div class="container shape-container">
+            <div class="shape-header">
+                <h2 class="section-title">Choose Keychain Shape</h2>
+                <p class="choose-sub">Select a shape for your custom keychain tag.</p>
+            </div>
+
+            <div class="shape-grid" id="shape-grid">
+                <button type="button" class="shape-card selected" data-shape-id="rectangle">
+                    <span class="shape-card-icon">
+                        <svg viewBox="0 0 72 35" width="56" height="28">
+                            <rect x="2" y="2" width="68" height="31" rx="4" fill="none" stroke="currentColor" stroke-width="2.5"/>
+                            <circle cx="8" cy="17.5" r="2.8" fill="currentColor"/>
+                        </svg>
+                    </span>
+                    <span class="shape-card-title">Rectangle</span>
+                    <span class="shape-card-desc">Classic tag</span>
+                    <span class="shape-card-radio"><span class="radio-dot"></span></span>
+                </button>
+
+                <button type="button" class="shape-card" data-shape-id="circle">
+                    <span class="shape-card-icon">
+                        <svg viewBox="0 0 50 50" width="40" height="40">
+                            <circle cx="25" cy="25" r="22" fill="none" stroke="currentColor" stroke-width="2.5"/>
+                            <circle cx="25" cy="7" r="2.8" fill="currentColor"/>
+                        </svg>
+                    </span>
+                    <span class="shape-card-title">Circle</span>
+                    <span class="shape-card-desc">Round disc</span>
+                    <span class="shape-card-radio"><span class="radio-dot"></span></span>
+                </button>
+
+                <button type="button" class="shape-card" data-shape-id="heart">
+                    <span class="shape-card-icon">
+                        <svg viewBox="0 0 55 50" width="44" height="40">
+                            <path d="M 27.5 46 C 14 36 2 26 2 15 C 2 7 8 2 16 2 C 21.5 2 25.5 5.5 27.5 9.5 C 29.5 5.5 33.5 2 39 2 C 47 2 53 7 53 15 C 53 26 41 36 27.5 46 Z" fill="none" stroke="currentColor" stroke-width="2.5"/>
+                            <circle cx="27.5" cy="7" r="2.8" fill="currentColor"/>
+                        </svg>
+                    </span>
+                    <span class="shape-card-title">Heart</span>
+                    <span class="shape-card-desc">Expressive tag</span>
+                    <span class="shape-card-radio"><span class="radio-dot"></span></span>
+                </button>
+            </div>
+
+            <div class="sticky-footer-action">
+                <button class="btn btn-primary" id="btn-shape-continue">
+                    Continue
+                    <svg class="btn-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </section>
+
     <!-- Screen 2: Choose type -->
     <section id="screen-choose" class="screen">
         <div class="container">

@@ -241,6 +241,8 @@ async function processOrder(order) {
     // Sanity: where is the laser physically right now?
     await logCurrentPosition('Current position');
 
+    const shape = order.shape || 'rectangle';
+
     // Generate G-code — branch on the order type.
     let gcodePath;
     if (order.mode === 'image') {
@@ -248,7 +250,7 @@ async function processOrder(order) {
         // Cloud Storage and rasterise it into the keychain's image area.
         console.log('[STEP 1] Downloading uploaded image...');
         const localImage = await downloadPrintImage(order);
-        console.log('[STEP 2] Generating raster G-code from image...');
+        console.log(`[STEP 2] Generating raster G-code from image (shape=${shape})...`);
         gcodePath = await imageToGcode(localImage, order.id);
     } else {
         // Text/name order (mode 'text' or legacy orders with no mode field).
@@ -258,10 +260,10 @@ async function processOrder(order) {
 
         if (ENGRAVING_MODE === 'vector') {
             const fontId = order.fontId || 'pixel';
-            console.log(`[STEP 2] Generating vector G-code (font=${fontId})...`);
-            gcodePath = await textToGcode(label, order.id, fontId);
+            console.log(`[STEP 2] Generating vector G-code (font=${fontId}, shape=${shape})...`);
+            gcodePath = await textToGcode(label, order.id, fontId, shape);
         } else {
-            console.log('[STEP 2] Generating raster G-code...');
+            console.log(`[STEP 2] Generating raster G-code (shape=${shape})...`);
             const imagePath = generateKeychainImage(label, order.id);
             gcodePath = await imageToGcode(imagePath, order.id);
         }

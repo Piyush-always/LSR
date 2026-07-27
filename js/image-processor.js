@@ -13,11 +13,6 @@
     const AREA = window.KEYCHAIN_IMAGE_AREA;
     const PIXEL_MM = window.ENGRAVE_PIXEL_SIZE_MM;
     const LIMITS = window.IMAGE_UPLOAD;
-
-    // Engrave-resolution target dimensions (pixels).
-    const TARGET_W = Math.round(AREA.width / PIXEL_MM);
-    const TARGET_H = Math.round(AREA.height / PIXEL_MM);
-
     const ACCEPTED = LIMITS.accept.split(',').map(s => s.trim());
 
     class KeychainImageProcessor {
@@ -29,18 +24,29 @@
 
             // Processed output — TARGET_W × TARGET_H, white = burn.
             this.canvas = document.createElement('canvas');
-            this.canvas.width = TARGET_W;
-            this.canvas.height = TARGET_H;
+            this.canvas.width = this.width;
+            this.canvas.height = this.height;
             this._ctx = this.canvas.getContext('2d');
 
-            // Cached per-pixel grayscale luma + alpha of the FITTED image, so
-            // moving the threshold slider is a cheap recompute (no re-decode).
-            this._gray = null;   // Uint8ClampedArray, length TARGET_W*TARGET_H
-            this._alpha = null;  // Uint8ClampedArray — 0 = letterbox/transparent (never burns)
+            this._gray = null;   // Uint8ClampedArray
+            this._alpha = null;  // Uint8ClampedArray
         }
 
-        get width() { return TARGET_W; }
-        get height() { return TARGET_H; }
+        get currentArea() {
+            const shape = (window.getShape && window.selectedShapeId)
+                ? window.getShape(window.selectedShapeId)
+                : null;
+            return shape ? shape.imageArea : window.KEYCHAIN_IMAGE_AREA;
+        }
+
+        get width() {
+            return Math.round(this.currentArea.width / window.ENGRAVE_PIXEL_SIZE_MM);
+        }
+
+        get height() {
+            return Math.round(this.currentArea.height / window.ENGRAVE_PIXEL_SIZE_MM);
+        }
+
         get hasImage() { return this.source !== null; }
 
         // Validate + decode an uploaded File. Throws Error(message) on bad input.
@@ -65,6 +71,13 @@
             this._process();   // render B&W with current threshold/invert
         }
 
+        reprocess() {
+            if (this.source) {
+                this._fit();
+                this._process();
+            }
+        }
+
         setThreshold(value) {
             this.threshold = Math.max(0, Math.min(255, value | 0));
             if (this.source) this._process();
@@ -79,26 +92,68 @@
         // TRANSPARENT background, then cache grayscale + alpha. Letterbox pixels
         // keep alpha 0 so they never burn regardless of threshold.
         _fit() {
+            const targetW = this.width;
+            const targetH = this.height;
+            const area = this.currentArea;
+
+            this.canvas.width = targetW;
+            this.canvas.height = targetH;
+
             const fit = document.createElement('canvas');
-            fit.width = TARGET_W;
-            fit.height = TARGET_H;
+            fit.width = targetW;
+            fit.height = targetH;
             const fctx = fit.getContext('2d');
-            fctx.clearRect(0, 0, TARGET_W, TARGET_H); // transparent letterbox
+            fctx.clearRect(0, 0, targetW, targetH);
 
             const sw = this.source.width;
             const sh = this.source.height;
-            const scale = Math.min(TARGET_W / sw, TARGET_H / sh);
+            const scale = Math.min(targetW / sw, targetH / sh);
        
             const dw = sw * scale;
             const dh = sh * scale;
-            const dx = (TARGET_W - dw) / 2;
-            const dy = (TARGET_H - dh) / 2;
+            const dx = (targetW - dw) / 2;
+            const dy = (targetH - dh) / 2;
+
             fctx.imageSmoothingEnabled = true;
             fctx.imageSmoothingQuality = 'high';
             fctx.drawImage(this.source, dx, dy, dw, dh);
 
-            const data = fctx.getImageData(0, 0, TARGET_W, TARGET_H).data;
-            const n = TARGET_W * TARGET_H;
+            // Shape mask compositing using Path2D
+            const shape = (window.getShape && window.selectedShapeId)
+                ? window.getShape(window.selectedShapeId)
+                : null;
+
+            if (shape && shape.borderPathD) {
+                const maskCanvas = document.createElement('canvas');
+                maskCanvas.width = targetW;
+                maskCanvas.height = targetH;
+                const mctx = maskCanvas.getContext('2d');
+
+                const scaleX = targetW / area.width;
+                const scaleY = targetH / area.height;
+
+                mctx.save();
+                mctx.scale(scaleX, scaleY);
+                mctx.translate(-area.x, -area.y);
+
+                const shapePath = new Path2D(shape.borderPathD);
+                mctx.fillStyle = '#ffffff';
+                mctx.fill(shapePath);
+
+                if (shape.hole) {
+                    mctx.globalCompositeOperation = 'destination-out';
+                    mctx.beginPath();
+                    mctx.arc(shape.hole.cx, shape.hole.cy, shape.hole.r + 0.3, 0, Math.PI * 2);
+                    mctx.fill();
+                }
+                mctx.restore();
+
+                fctx.globalCompositeOperation = 'destination-in';
+                fctx.drawImage(maskCanvas, 0, 0);
+            }
+
+            const data = fctx.getImageData(0, 0, targetW, targetH).data;
+            const n = targetW * targetH;
             this._gray = new Uint8ClampedArray(n);
             this._alpha = new Uint8ClampedArray(n);
             for (let i = 0; i < n; i++) {
@@ -113,8 +168,10 @@
         // Default (no invert): pixels DARKER than the threshold burn — i.e. the
         // dark strokes of a logo on a light background. Invert flips that.
         _process() {
-            const n = TARGET_W * TARGET_H;
-            const out = this._ctx.createImageData(TARGET_W, TARGET_H);
+            const w = this.width;
+            const h = this.height;
+            const n = w * h;
+            const out = this._ctx.createImageData(w, h);
             const o = out.data;
             const t = this.threshold;
             const inv = this.invert;
@@ -127,7 +184,7 @@
                     burn = inv ? !dark : dark;
                 }
                 const v = burn ? 255 : 0;
-                o[i * 4] = v; o[i * 4 + 1] = v; o[i * 4 + 2] = v; o[i * 4 + 3] = 255;
+                o[i * 4] = v; o[i * 4 + 1] = v; o[i * 4 + 2] = v; o[i * 4 + 3] = burn ? 255 : 0;
             }
             this._ctx.putImageData(out, 0, 0);
         }
@@ -146,7 +203,9 @@
         // very dense images (long engrave time / a solid black slab).
         coverage() {
             if (!this._gray) return 0;
-            const n = TARGET_W * TARGET_H;
+            const w = this.width;
+            const h = this.height;
+            const n = w * h;
             let burn = 0;
             const t = this.threshold, inv = this.invert;
             for (let i = 0; i < n; i++) {

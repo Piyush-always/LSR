@@ -125,7 +125,7 @@ function isEmoji(char) {
 // =================================================================
 // MAIN ENTRY
 // =================================================================
-async function textToGcode(name, orderId, fontId) {
+async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle') {
     const cleanFontId = FONTS[fontId] ? fontId : DEFAULT_FONT_ID;
     const fontMetric = FONTS[cleanFontId];
     const fontSize = fontMetric.fixedCapHeight;
@@ -136,21 +136,33 @@ async function textToGcode(name, orderId, fontId) {
     // Build all paths in machine coordinates (Y-up, mm)
     const paths = [];
 
-    // 1. Border (rounded rectangle outline)
-    paths.push(roundedRectPolyline(
-        SETTINGS.borderInset,
-        SETTINGS.borderInset,
-        SETTINGS.keychainWidth - 2 * SETTINGS.borderInset,
-        SETTINGS.keychainHeight - 2 * SETTINGS.borderInset,
-        SETTINGS.cornerRadius
-    ));
-
-    // 2. Hole (circle outline)
-    paths.push(circlePolyline(SETTINGS.holeX, SETTINGS.keychainHeight - SETTINGS.holeY, SETTINGS.holeRadius, SETTINGS.circleSegments));
-
-    // 3. Text — char-by-char with mixed text/emoji fonts
-    const textPolylines = buildTextPolylines(cleanName, cleanFontId, fontSize);
-    paths.push(...textPolylines);
+    if (shape === 'circle') {
+        // Circle 50x50 mm
+        paths.push(circlePolyline(25, 25, 23, SETTINGS.circleSegments));
+        // Hole at (25, 43) in Y-up (7 mm from top)
+        paths.push(circlePolyline(25, 43, SETTINGS.holeRadius, SETTINGS.circleSegments));
+        const textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize, 25, 22);
+        paths.push(...textPolylines);
+    } else if (shape === 'heart') {
+        // Heart 55x50 mm
+        paths.push(heartPolyline(27.5, 24, 50, 44));
+        // Hole at (27.5, 43) in Y-up (7 mm from top)
+        paths.push(circlePolyline(27.5, 43, SETTINGS.holeRadius, SETTINGS.circleSegments));
+        const textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize, 27.5, 25);
+        paths.push(...textPolylines);
+    } else {
+        // Rectangle 72x35 mm (Default)
+        paths.push(roundedRectPolyline(
+            SETTINGS.borderInset,
+            SETTINGS.borderInset,
+            SETTINGS.keychainWidth - 2 * SETTINGS.borderInset,
+            SETTINGS.keychainHeight - 2 * SETTINGS.borderInset,
+            SETTINGS.cornerRadius
+        ));
+        paths.push(circlePolyline(SETTINGS.holeX, SETTINGS.keychainHeight - SETTINGS.holeY, SETTINGS.holeRadius, SETTINGS.circleSegments));
+        const textPolylines = buildTextPolylines(cleanName, cleanFontId, fontSize);
+        paths.push(...textPolylines);
+    }
 
     // Generate G-code
     const gcodeText = pathsToGcode(paths, orderId, cleanName, cleanFontId);
@@ -163,7 +175,7 @@ async function textToGcode(name, orderId, fontId) {
     const gcodePath = path.join(outputDir, `keychain_${orderId}.gcode`);
     fs.writeFileSync(gcodePath, gcodeText);
 
-    console.log(`[GCODE] Generated: ${gcodePath} (${gcodeText.split('\n').length} lines, font=${cleanFontId})`);
+    console.log(`[GCODE] Generated: ${gcodePath} (${gcodeText.split('\n').length} lines, font=${cleanFontId}, shape=${shape})`);
     return gcodePath;
 }
 
@@ -302,6 +314,18 @@ function roundedRectPolyline(x, y, w, h, r) {
     arc(x + r, y + r, -Math.PI / 2, -Math.PI);
     pts.push([x, y + h - r]);
     arc(x + r, y + h - r, Math.PI, Math.PI / 2);
+    return pts;
+}
+
+function heartPolyline(cx, cy, w, h) {
+    const pts = [];
+    const segs = 32;
+    for (let i = 0; i <= segs; i++) {
+        const t = (i / segs) * Math.PI * 2;
+        const x = 16 * Math.pow(Math.sin(t), 3);
+        const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+        pts.push([cx + (x / 16) * (w / 2), cy + (y / 16) * (h / 2)]);
+    }
     return pts;
 }
 

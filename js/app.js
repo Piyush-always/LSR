@@ -1,4 +1,5 @@
 // ===== STATE =====
+let selectedShapeId = window.DEFAULT_SHAPE_ID || 'rectangle';
 let selectedFontId = window.DEFAULT_FONT_ID;
 let currentMode = 'text';           // 'text' | 'image' — which flow the user is in
 const MAX_CODEPOINTS = 20;
@@ -18,6 +19,7 @@ const imageProcessor = new window.KeychainImageProcessor();
 // ===== DOM ELEMENTS =====
 const screens = {
     welcome: document.getElementById('screen-welcome'),
+    shape: document.getElementById('screen-shape'),
     choose: document.getElementById('screen-choose'),
     name: document.getElementById('screen-name'),
     image: document.getElementById('screen-image'),
@@ -26,6 +28,8 @@ const screens = {
 };
 
 const btnStart = document.getElementById('btn-start');
+const shapeCards = document.querySelectorAll('.shape-card');
+const btnShapeContinue = document.getElementById('btn-shape-continue');
 const typeName = document.getElementById('type-name');
 const typeImage = document.getElementById('type-image');
 const btnPay = document.getElementById('btn-pay');
@@ -131,6 +135,14 @@ function readScreenFromHash() {
 }
 
 // ===== HOME BUTTON =====
+function resetShapeState() {
+    selectedShapeId = window.DEFAULT_SHAPE_ID || 'rectangle';
+    if (shapeCards) {
+        shapeCards.forEach(c => c.classList.toggle('selected', c.dataset.shapeId === selectedShapeId));
+    }
+    updateShapePreviews();
+}
+
 btnHome.addEventListener('click', () => {
     const onSuccess = document.body.dataset.screen === 'success';
     const hasInput = nameInput.value.trim().length > 0 || imageProcessor.hasImage;
@@ -143,13 +155,33 @@ btnHome.addEventListener('click', () => {
     }
     resetTextState();
     resetImageState();
+    resetShapeState();
     showScreen('welcome');
 });
 
-// ===== WELCOME → CHOOSE TYPE =====
+// ===== WELCOME → CHOOSE SHAPE =====
 btnStart.addEventListener('click', () => {
-    showScreen('choose');
+    showScreen('shape');
 });
+
+// ===== SHAPE SELECTION =====
+if (shapeCards) {
+    shapeCards.forEach(card => {
+        card.addEventListener('click', () => {
+            const shapeId = card.dataset.shapeId;
+            if (!window.KEYCHAIN_SHAPES || !window.KEYCHAIN_SHAPES[shapeId]) return;
+            selectedShapeId = shapeId;
+            shapeCards.forEach(c => c.classList.toggle('selected', c.dataset.shapeId === shapeId));
+            updateShapePreviews();
+        });
+    });
+}
+
+if (btnShapeContinue) {
+    btnShapeContinue.addEventListener('click', () => {
+        showScreen('choose');
+    });
+}
 
 // ===== CHOOSE TYPE → DESIGN =====
 typeName.addEventListener('click', () => {
@@ -243,15 +275,85 @@ function insertEmoji(emoji) {
     nameInput.dispatchEvent(new Event('input'));
 }
 
+// ===== DYNAMIC SHAPE PREVIEW UPDATER =====
+function updateShapePreviews() {
+    const shape = window.getShape(selectedShapeId);
+    if (!shape) return;
+
+    window.selectedShapeId = selectedShapeId;
+
+    // 1. Update Text Preview SVG (#keychain-svg)
+    const keychainSvg = document.getElementById('keychain-svg');
+    if (keychainSvg) {
+        keychainSvg.setAttribute('viewBox', shape.viewBox);
+        keychainSvg.innerHTML = `
+            ${shape.dimensionLines}
+            ${shape.outlineSvg}
+            ${shape.holeSvg}
+            <text id="keychain-text"
+                  x="${shape.textArea.x}" y="${shape.textArea.y}"
+                  font-family="'Press Start 2P', 'Noto Emoji', monospace"
+                  font-size="${(window.KEYCHAIN_FONTS[selectedFontId] ? window.KEYCHAIN_FONTS[selectedFontId].fixedCapHeight : 4) * shape.textArea.fontScale}"
+                  text-anchor="${shape.textArea.anchor}"
+                  dominant-baseline="${shape.textArea.baseline}"
+                  fill="none" stroke="#0a0a0a" stroke-width="0.18"
+                  paint-order="stroke"></text>
+        `;
+        renderKeychainText();
+    }
+
+    // Update Text Preview Hint
+    const textPreviewHint = document.querySelector('#screen-name .preview-hint');
+    if (textPreviewHint) {
+        textPreviewHint.textContent = `Actual size · ${shape.dimLabelX} × ${shape.dimLabelY}`;
+    }
+
+    // 2. Update Image Preview Container & SVG Overlay
+    if (imgKeychain) {
+        const viewBoxW = shape.viewBoxW || shape.width;
+        const viewBoxH = shape.viewBoxH || shape.height;
+        imgKeychain.style.aspectRatio = `${viewBoxW} / ${viewBoxH}`;
+    }
+
+    const imgOverlay = document.querySelector('.img-overlay');
+    if (imgOverlay) {
+        imgOverlay.setAttribute('viewBox', shape.viewBox);
+        imgOverlay.innerHTML = `
+            ${shape.dimensionLines}
+            ${shape.outlineSvg}
+            ${shape.holeSvg}
+        `;
+    }
+
+    // Update Image Preview Hint
+    const imgPreviewHint = document.querySelector('#screen-image .preview-hint');
+    if (imgPreviewHint) {
+        imgPreviewHint.textContent = `Engraves inside marked area · ${shape.dimLabelX} × ${shape.dimLabelY}`;
+    }
+
+    positionImageCanvas();
+    if (typeof imageProcessor !== 'undefined' && imageProcessor.hasImage) {
+        imageProcessor.reprocess();
+        renderImageCanvas();
+    }
+}
+
 // ===== LIVE KEYCHAIN PREVIEW (text) =====
 function renderKeychainText() {
+    const textEl = document.getElementById('keychain-text');
+    if (!textEl) return;
     const raw = nameInput.value.trim();
     const display = raw.replace(/[a-z]/g, c => c.toUpperCase()) || 'YOUR NAME';
-    const font = window.KEYCHAIN_FONTS[selectedFontId];
+    const font = window.KEYCHAIN_FONTS[selectedFontId] || window.KEYCHAIN_FONTS.pixel;
+    const shape = window.getShape(selectedShapeId);
 
-    keychainText.textContent = display;
-    keychainText.setAttribute('font-family', font.family);
-    keychainText.setAttribute('font-size', font.fixedCapHeight);
+    textEl.textContent = display;
+    textEl.setAttribute('font-family', font.family);
+    textEl.setAttribute('font-size', font.fixedCapHeight * shape.textArea.fontScale);
+    textEl.setAttribute('x', shape.textArea.x);
+    textEl.setAttribute('y', shape.textArea.y);
+    textEl.setAttribute('text-anchor', shape.textArea.anchor);
+    textEl.setAttribute('dominant-baseline', shape.textArea.baseline);
 }
 
 function updateCharCount() {
@@ -328,32 +430,25 @@ async function openCropEditor(file) {
     cropModal.hidden = false;
 
     cropImage.onload = () => {
+        const shape = window.getShape(selectedShapeId);
+        const aspect = shape ? (shape.width / shape.height) : (72 / 35);
 
-    
-    cropper = new Cropper(cropImage, {
-    aspectRatio: NaN,
-
-    viewMode: 0,
-
-    autoCropArea: 0.9,
-
-    dragMode: "crop",
-
-    cropBoxResizable: true,
-    cropBoxMovable: true,
-
-    movable: true,
-    zoomable: true,
-    rotatable: true,
-
-    guides: true,
-    center: true,
-    highlight: true,
-    background: false
-});
-
+        cropper = new Cropper(cropImage, {
+            aspectRatio: aspect,
+            viewMode: 0,
+            autoCropArea: 0.9,
+            dragMode: "crop",
+            cropBoxResizable: true,
+            cropBoxMovable: true,
+            movable: true,
+            zoomable: true,
+            rotatable: true,
+            guides: true,
+            center: true,
+            highlight: true,
+            background: false
+        });
     };
-
 }
 
 rotateLeft.addEventListener('click', () => {
@@ -414,14 +509,24 @@ cropConfirm.addEventListener('click', async () => {
 
 // ===== IMAGE DESIGN =====
 // Position the processed-bitmap canvas over the keychain's engrave area, using
-// the shared KEYCHAIN_IMAGE_AREA (so preview placement == engrave placement).
+// the shape's imageArea (so preview placement == engrave placement).
 function positionImageCanvas() {
-    const area = window.KEYCHAIN_IMAGE_AREA;
-    const L = window.KEYCHAIN_LAYOUT;
-    imgCanvas.style.left = (area.x / L.width * 100) + '%';
-    imgCanvas.style.top = (area.y / L.height * 100) + '%';
-    imgCanvas.style.width = (area.width / L.width * 100) + '%';
-    imgCanvas.style.height = (area.height / L.height * 100) + '%';
+    const shape = window.getShape(selectedShapeId);
+    const area = shape.imageArea;
+    const viewBoxW = shape.viewBoxW || shape.width;
+    const viewBoxH = shape.viewBoxH || shape.height;
+    const originX = shape.originX || 0;
+    const originY = shape.originY || 0;
+
+    const left = ((originX + area.x) / viewBoxW) * 100;
+    const top = ((originY + area.y) / viewBoxH) * 100;
+    const width = (area.width / viewBoxW) * 100;
+    const height = (area.height / viewBoxH) * 100;
+
+    imgCanvas.style.left = left + '%';
+    imgCanvas.style.top = top + '%';
+    imgCanvas.style.width = width + '%';
+    imgCanvas.style.height = height + '%';
 }
 
 function renderImageCanvas() {
@@ -631,11 +736,11 @@ async function initiatePayment(mode) {
         if (mode === 'image') {
             setPaymentMessage('Checking your image…', 'Uploading and reviewing your design.');
             const paths = await uploadImageBlobs();
-            payload = { mode: 'image', ...paths };
+            payload = { mode: 'image', shape: selectedShapeId, ...paths };
             displayName = 'your image';
         } else {
             const name = nameInput.value.trim();
-            payload = { mode: 'text', name, fontId: selectedFontId };
+            payload = { mode: 'text', name, fontId: selectedFontId, shape: selectedShapeId };
             displayName = name;
         }
 

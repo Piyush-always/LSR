@@ -215,6 +215,156 @@ body::before {
     letter-spacing: -0.5px;
 }
 
+/* ===== SHAPE SELECTION ===== */
+.shape-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100%;
+    padding-bottom: 90px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.container.shape-container {
+    max-width: 640px;
+}
+
+.shape-header {
+    margin-bottom: 24px;
+    text-align: center;
+}
+
+.shape-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 28px;
+    width: 100%;
+}
+
+.shape-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 22px 10px 18px;
+    border: 2px solid var(--border);
+    border-radius: 18px;
+    background: var(--bg-card);
+    color: var(--text);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.25s ease;
+    width: 100%;
+    min-height: 155px;
+    outline: none;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.shape-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 229, 255, 0.15);
+}
+
+.shape-card.selected {
+    border-color: var(--accent);
+    background: rgba(0, 229, 255, 0.06);
+    box-shadow: 0 0 0 1px var(--accent), 0 8px 24px rgba(0, 229, 255, 0.18);
+}
+
+.shape-card-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    color: var(--accent-dark);
+    flex-shrink: 0;
+    transition: color 0.25s ease, background 0.25s ease;
+}
+
+.shape-card.selected .shape-card-icon {
+    background: var(--accent);
+    color: var(--text);
+}
+
+.shape-card-title {
+    font-size: 1rem;
+    font-weight: 800;
+    display: block;
+    margin-bottom: 2px;
+    color: var(--text);
+}
+
+.shape-card-desc {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    display: block;
+    line-height: 1.3;
+}
+
+.shape-card-radio {
+    margin-top: 4px;
+    margin-left: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.25s ease;
+}
+
+.shape-card.selected .shape-card-radio {
+    border-color: var(--accent);
+}
+
+.radio-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0;
+    transform: scale(0.5);
+    transition: all 0.2s ease;
+}
+
+.shape-card.selected .radio-dot {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.shape-card.selected .radio-dot {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.sticky-footer-action {
+    position: sticky;
+    bottom: 16px;
+    left: 0;
+    right: 0;
+    margin-top: auto;
+    padding-top: 12px;
+    background: linear-gradient(to top, var(--bg) 80%, rgba(255, 255, 255, 0));
+    z-index: 5;
+    display: flex;
+    justify-content: center;
+}
+
+.sticky-footer-action .btn {
+    width: 100%;
+    max-width: 380px;
+    justify-content: center;
+}
+
 /* ===== PREVIEW BOX ===== */
 .preview-box {
     background: var(--bg-card);
@@ -565,6 +715,32 @@ overflow: hidden;
     }
 }
 
+@media (max-width: 520px) {
+    .shape-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+
+    .shape-card {
+        padding: 16px 4px 12px;
+        min-height: 130px;
+        gap: 6px;
+    }
+
+    .shape-card-icon {
+        width: 44px;
+        height: 44px;
+    }
+
+    .shape-card-title {
+        font-size: 0.88rem;
+    }
+
+    .shape-card-desc {
+        font-size: 0.7rem;
+    }
+}
+
 @media (max-width: 380px) {
     .welcome-title {
         font-size: 2rem;
@@ -899,6 +1075,7 @@ body[data-screen="welcome"] .home-btn {
     margin: 0 auto;
     background: #ffffff;
     border-radius: 8px;
+    transition: aspect-ratio 0.25s ease;
 }
 
 .img-canvas {
@@ -918,6 +1095,7 @@ body[data-screen="welcome"] .home-btn {
     width: 100%;
     height: 100%;
     pointer-events: none;
+    overflow: visible;
 }
 
 .img-dropzone {
