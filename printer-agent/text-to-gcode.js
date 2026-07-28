@@ -182,7 +182,7 @@ async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle')
 // =================================================================
 // BUILD TEXT POLYLINES — char-by-char, mixed fonts
 // =================================================================
-function buildTextPolylines(text, fontId, fontSize) {
+function buildTextPolylines(text, fontId, fontSize, centerX = (SETTINGS.textLeft + SETTINGS.textRight) / 2, centerY = SETTINGS.keychainHeight / 2) {
     const textFont = loadFontById(fontId);
     const emojiFont = loadEmojiFont();
 
@@ -210,14 +210,13 @@ function buildTextPolylines(text, fontId, fontSize) {
     const totalWidth = cursorX;
 
     // Center horizontally in the text area
-    const textAreaCenter = (SETTINGS.textLeft + SETTINGS.textRight) / 2;
-    const offsetX = textAreaCenter - totalWidth / 2;
+    const offsetX = centerX - totalWidth / 2;
 
     // Center vertically — opentype draws glyphs with baseline at y=0,
     // ascenders going DOWN (Y-down convention). We need Y-up for the laser.
-    // Place baseline at keychainHeight/2 - capHeight*0.35 so the cap-height-tall
+    // Place baseline at centerY - capHeight*0.35 so the cap-height-tall
     // text appears centered.
-    const baselineY = SETTINGS.keychainHeight / 2 - fontSize * 0.35;
+    const baselineY = centerY - fontSize * 0.35;
 
     const polylines = [];
     for (const { glyph, x } of glyphPlacements) {
@@ -234,6 +233,8 @@ function buildTextPolylines(text, fontId, fontSize) {
     }
     return polylines;
 }
+
+const buildTextPolylinesCustom = buildTextPolylines;
 
 // =================================================================
 // FLATTEN OPENTYPE PATH → POLYLINES
