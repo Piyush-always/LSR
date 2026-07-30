@@ -6,7 +6,7 @@ const fs = require('fs');
 // Adjust COM port for your Creality CV-01 Pro
 // Check Device Manager → Ports (COM & LPT) on the printer laptop
 const SERIAL_CONFIG = {
-    port: process.env.LASER_PORT || 'COM8',
+    port: process.env.LASER_PORT || '/dev/tty.usbmodem1234561',
     baudRate: 115200,
 };
 

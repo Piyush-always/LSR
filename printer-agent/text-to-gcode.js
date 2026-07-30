@@ -15,40 +15,21 @@ const path = require('path');
 // ##       You ONLY need to change the numbers. Do not touch         ##
 // ##       anything else in this file.                               ##
 // ##                                                                 ##
-// #####################################################################
+// Precise shape holder offsets mapped from physical bed measurements (in mm relative to Home)
+const SHAPE_POSITIONS = {
+    circle:    { startOffsetX: 276.38, startOffsetY: 110.66 },
+    rectangle: { startOffsetX: 376.05, startOffsetY: 197.77 },
+    heart:     { startOffsetX: 383.05, startOffsetY: 81.27 },
+};
+
+function getPositionForShape(shape) {
+    const key = String(shape || 'rectangle').toLowerCase().trim();
+    return SHAPE_POSITIONS[key] || SHAPE_POSITIONS.rectangle;
+}
+
 const POSITION = {
-
-    // ================================================================
-    //  TWO REFERENCE POINTS — all distances in millimeters
-    // ================================================================
-    //
-    //   HOME   = (0, 0)    — fixed reference set when the agent
-    //                        connects. It's whatever spot the laser
-    //                        head is sitting in at connect time.
-    //                        After every job the laser returns here.
-    //
-    //   START  = HOME + (startOffsetX, startOffsetY)
-    //                      — where the keychain ACTUALLY gets engraved.
-    //
-    // Direction convention (standard GRBL):
-    //   +X = RIGHT      -X = LEFT
-    //   +Y = UP / BACK  -Y = DOWN / FRONT (toward you)
-    //
-    // To change HOME: jog the laser head to the new spot, Ctrl+C the
-    // agent, then restart `node index.js`.
-    //
-    // ================================================================
-
-
-    // ---------------------------------------------------------------
-    // START — where the keychain engraves (distance from HOME)
-    // ---------------------------------------------------------------
-    //   0 / 0    →  engrave at HOME
-    //   30 / 0   →  engrave 30 mm to the RIGHT of HOME
-    //   -10 / 5  →  engrave 10 mm LEFT and 5 mm UP from HOME
-    // ---------------------------------------------------------------
-    startOffsetX: 0,    // mm
-    startOffsetY: 0,    // mm
+    get startOffsetX() { return SHAPE_POSITIONS.rectangle.startOffsetX; },
+    get startOffsetY() { return SHAPE_POSITIONS.rectangle.startOffsetY; },
 };
 // #####################################################################
 // ##  End of easy-edit settings. Do not edit below this line unless  ##
@@ -165,7 +146,7 @@ async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle')
     }
 
     // Generate G-code
-    const gcodeText = pathsToGcode(paths, orderId, cleanName, cleanFontId);
+    const gcodeText = pathsToGcode(paths, orderId, cleanName, cleanFontId, shape);
 
     // Save to file
     const outputDir = path.join(__dirname, 'output');
@@ -333,13 +314,14 @@ function heartPolyline(cx, cy, w, h) {
 // =================================================================
 // PATHS → G-CODE
 // =================================================================
-function pathsToGcode(polylines, orderId, name, fontId) {
+function pathsToGcode(polylines, orderId, name, fontId, shape = 'rectangle') {
     const lines = [];
 
     lines.push('; Vector keychain G-code');
     lines.push(`; Order: ${orderId}`);
     lines.push(`; Name: ${name}`);
     lines.push(`; Font: ${fontId}`);
+    lines.push(`; Shape: ${shape}`);
     lines.push(`; Mode: outline only`);
     lines.push(`; Total paths: ${polylines.length}`);
     lines.push('');
@@ -355,8 +337,9 @@ function pathsToGcode(polylines, orderId, name, fontId) {
     lines.push(`G1 F${SETTINGS.feedRate}`);
     lines.push('');
 
-    const dx = POSITION.startOffsetX;
-    const dy = POSITION.startOffsetY;
+    const pos = getPositionForShape(shape);
+    const dx = pos.startOffsetX;
+    const dy = pos.startOffsetY;
 
     for (const polyline of polylines) {
         if (!polyline || polyline.length < 2) continue;
@@ -380,4 +363,4 @@ function pathsToGcode(polylines, orderId, name, fontId) {
     return lines.join('\n');
 }
 
-module.exports = { textToGcode, SETTINGS, FONTS, POSITION };
+module.exports = { textToGcode, SETTINGS, FONTS, POSITION, SHAPE_POSITIONS, getPositionForShape };

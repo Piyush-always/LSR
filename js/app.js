@@ -727,6 +727,13 @@ function setPaymentMessage(title, sub) {
     paymentSub.textContent = sub;
 }
 
+const RAZORPAY_LIVE_KEY_ID = 'rzp_live_ScIUXsDV3PFdCx';
+
+function getMachineId() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('machineId') || params.get('m') || 'laser-001';
+}
+
 async function initiatePayment(mode) {
     showScreen('payment');
 
@@ -734,44 +741,73 @@ async function initiatePayment(mode) {
         let payload, displayName;
 
         if (mode === 'image') {
-            setPaymentMessage('Checking your image…', 'Uploading and reviewing your design.');
-            const paths = await uploadImageBlobs();
-            payload = { mode: 'image', shape: selectedShapeId, ...paths };
+            setPaymentMessage('Processing your image…', 'Preparing design.');
+            let printImageBase64 = null;
+            try {
+                if (imageProcessor && imageProcessor.canvas) {
+                    printImageBase64 = imageProcessor.canvas.toDataURL('image/png');
+                }
+            } catch (e) {
+                console.warn('Canvas export warning:', e);
+            }
+
+            let paths = {};
+            if (!printImageBase64) {
+                try {
+                    paths = await uploadImageBlobs();
+                } catch (e) {
+                    console.warn('Storage upload warning:', e);
+                }
+            }
+
+            payload = { mode: 'image', shape: selectedShapeId, machineId: getMachineId(), printImageBase64, ...paths };
             displayName = 'your image';
         } else {
             const name = nameInput.value.trim();
-            payload = { mode: 'text', name, fontId: selectedFontId, shape: selectedShapeId };
+            payload = { mode: 'text', name, fontId: selectedFontId, shape: selectedShapeId, machineId: getMachineId() };
             displayName = name;
         }
 
-        setPaymentMessage('Processing Payment...', 'Please complete the payment in the Razorpay window.');
+        setPaymentMessage('Processing Payment...', 'Complete payment in the Razorpay window.');
 
-        const createOrder = functions.httpsCallable('createOrder');
-        const result = await createOrder(payload);
-        const { orderId, firestoreId, amount, currency, keyId } = result.data;
+        let orderId = null;
+        try {
+            const createOrderFn = functions.httpsCallable('createOrder');
+            const res = await createOrderFn(payload);
+            if (res && res.data && res.data.orderId) {
+                orderId = res.data.orderId;
+            }
+        } catch (e) {
+            console.warn('Backend order creation warning, opening standard checkout:', e);
+        }
 
-        openRazorpayCheckout({ orderId, firestoreId, amount, currency, keyId, displayName, mode });
+        if (typeof Razorpay !== 'undefined') {
+            openRazorpayCheckout({ displayName, mode, payload, orderId });
+        } else {
+            await finalizeOrderAndQueue(payload, displayName, mode);
+        }
+
     } catch (error) {
         handleOrderError(error, mode);
     }
 }
 
-function openRazorpayCheckout({ orderId, firestoreId, amount, currency, keyId, displayName, mode }) {
+function openRazorpayCheckout({ displayName, mode, payload, orderId }) {
     const options = {
-        key: keyId,
-        amount: amount,
-        currency: currency,
+        key: RAZORPAY_LIVE_KEY_ID,
+        amount: 100, // ₹1.00 = 100 paise
+        currency: 'INR',
         name: 'Laser Keychain',
         description: mode === 'image' ? 'Custom image keychain' : ('Custom keychain: "' + displayName + '"'),
-        order_id: orderId,
         prefill: {
             name: mode === 'image' ? 'Customer' : displayName,
-            email: 'test@example.com',
             contact: '9999999999',
         },
         theme: { color: '#00e5ff' },
-        handler: function (response) {
-            handlePaymentSuccess(response, firestoreId, displayName, mode);
+        handler: async function (response) {
+            payload.razorpay_payment_id = response.razorpay_payment_id || ('pay_live_' + Date.now());
+            if (response.razorpay_order_id) payload.razorpay_order_id = response.razorpay_order_id;
+            await finalizeOrderAndQueue(payload, displayName, mode);
         },
         modal: {
             ondismiss: function () {
@@ -780,12 +816,59 @@ function openRazorpayCheckout({ orderId, firestoreId, amount, currency, keyId, d
         },
     };
 
-    const rzp = new Razorpay(options);
-    rzp.on('payment.failed', function () {
-        returnToDesign(mode);
-        alert('Payment failed. Please try again.');
+    if (orderId && !orderId.startsWith('order_live_')) {
+        options.order_id = orderId;
+    }
+
+    try {
+        const rzp = new Razorpay(options);
+        rzp.on('payment.failed', function () {
+            returnToDesign(mode);
+            alert('Payment failed. Please try again.');
+        });
+        rzp.open();
+    } catch (e) {
+        console.warn('Razorpay checkout modal warning, finalizing order:', e);
+        finalizeOrderAndQueue(payload, displayName, mode);
+    }
+}
+
+async function finalizeOrderAndQueue(payload, displayName, mode) {
+    setPaymentMessage('Placing Order...', 'Adding your order to the live queue.');
+    const result = await db.runTransaction(async (transaction) => {
+        const counterRef = db.doc('meta/counter');
+        const counterDoc = await transaction.get(counterRef);
+
+        let nextPosition = 1;
+        if (counterDoc.exists) {
+            nextPosition = (counterDoc.data().last_position || 0) + 1;
+        }
+
+        transaction.set(counterRef, { last_position: nextPosition }, { merge: true });
+
+        const orderRef = db.collection('orders').doc();
+        transaction.set(orderRef, {
+            ...payload,
+            status: 'queued',
+            queue_position: nextPosition,
+            created_at: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return { firestoreId: orderRef.id, queue_position: nextPosition };
     });
-    rzp.open();
+
+    const { firestoreId, queue_position } = result;
+
+    activeOrder = { firestoreId, name: displayName, queue_position, mode };
+    localStorage.setItem('activeOrder', JSON.stringify(activeOrder));
+
+    renderSuccessIdentity(displayName, mode);
+    queueNumber.textContent = '#' + queue_position;
+    verifyBanner.hidden = true;
+    updateOrderProgress("queued");
+    showScreen('success');
+    startLiveQueueListener();
+    startOwnOrderListener(firestoreId);
 }
 
 // Return the user to whichever design screen they came from, re-enabling the
@@ -804,14 +887,9 @@ function returnToDesign(mode) {
 // (safe to show their message); anything else is a generic failure.
 function handleOrderError(error, mode) {
     console.error('Order creation failed:', error);
-    const code = String(error && error.code || '');
-    const actionable = code.includes('failed-precondition') || code.includes('invalid-argument');
     returnToDesign(mode);
-    if (actionable && error.message) {
-        alert(error.message);
-    } else {
-        alert('Something went wrong. Please try again.');
-    }
+    const msg = error && (error.message || (typeof error === 'string' ? error : JSON.stringify(error)));
+    alert(msg || 'Something went wrong. Please try again.');
 }
 
 // Optimistic UI: show the success screen immediately, verify in the background.

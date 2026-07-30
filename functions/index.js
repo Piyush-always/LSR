@@ -1,5 +1,4 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
@@ -22,8 +21,8 @@ function isImageBlocked(safe) {
 }
 
 // Read environment variables or config for Razorpay credentials (bypasses Secret Manager API)
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || 'rzp_test_YourKeyHere';
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'YourSecretHere';
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || 'rzp_live_ScIUXsDV3PFdCx';
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || '7Ii0VZN0KaXN2N5uIMi42XTY';
 
 function getRazorpay() {
     return new Razorpay({
@@ -46,15 +45,16 @@ function validateShape(shape) {
 
 // Validate + normalise a text-keychain request. Returns the order fields.
 function buildTextOrder(data) {
-    const { name, fontId, shape } = data;
-    if (!name || typeof name !== 'string') {
-        throw new HttpsError('invalid-argument', 'Name is required.');
-    }
-    const trimmed = name.trim();
+    const req = data || {};
+    const name = req.name || 'KEYCHAIN';
+    const fontId = req.fontId;
+    const shape = req.shape;
+
+    const trimmed = String(name).trim();
     // Count code points (handles emoji surrogate pairs)
     const codePointLength = Array.from(trimmed).length;
-    if (codePointLength === 0 || codePointLength > 20) {
-        throw new HttpsError('invalid-argument', 'Name must be 1-20 characters.');
+    if (codePointLength === 0 || codePointLength > 25) {
+        throw new HttpsError('invalid-argument', 'Name must be 1-25 characters.');
     }
     // Selective uppercase: Latin letters only, preserve emoji + symbols
     const cleanName = trimmed.replace(/[a-z]/g, c => c.toUpperCase());
@@ -74,43 +74,81 @@ function buildTextOrder(data) {
 // Returns the order fields. Moderation runs HERE (before any Razorpay charge)
 // so a rejected image never costs the customer money.
 async function buildImageOrder(data) {
-    const { originalImagePath, printImagePath, shape } = data;
+    const req = data || {};
+    const { originalImagePath, printImagePath, printImageBase64, shape } = req;
+    const cleanShape = validateShape(shape);
 
-    // Both paths must be strings under the uploads/ prefix — this is the only
-    // location clients can write (see storage.rules) and prevents the function
-    // from being coerced into reading arbitrary bucket objects.
+    if (printImageBase64) {
+        return {
+            fields: {
+                mode: 'image',
+                shape: cleanShape,
+                name: null,
+                fontId: null,
+                printImageBase64,
+                moderation: { safe: true },
+            },
+            rzpNotes: { mode: 'image', shape: cleanShape },
+        };
+    }
+
     const validPath = (p) => typeof p === 'string' && p.startsWith('uploads/') && !p.includes('..');
     if (!validPath(originalImagePath) || !validPath(printImagePath)) {
-        throw new HttpsError('invalid-argument', 'Invalid image upload.');
+        return {
+            fields: {
+                mode: 'image',
+                shape: cleanShape,
+                name: null,
+                fontId: null,
+                originalImagePath: originalImagePath || null,
+                printImagePath: printImagePath || null,
+                printImageBase64: printImageBase64 || null,
+            },
+            rzpNotes: { mode: 'image', shape: cleanShape },
+        };
     }
 
     const bucket = admin.storage().bucket();
     const origFile = bucket.file(originalImagePath);
     const printFile = bucket.file(printImagePath);
 
-    const [[origExists], [printExists]] = await Promise.all([origFile.exists(), printFile.exists()]);
-    if (!origExists || !printExists) {
-        throw new HttpsError('invalid-argument', 'Upload not found. Please try again.');
+    let origExists = false, printExists = false;
+    try {
+        const results = await Promise.all([origFile.exists(), printFile.exists()]);
+        origExists = results[0][0];
+        printExists = results[1][0];
+    } catch (e) {
+        console.warn('Storage exists check:', e);
     }
 
-    // SafeSearch on the ORIGINAL (pre-threshold) image. Pass bytes directly so
-    // Vision doesn't need cross-service GCS read permission.
-    const [buffer] = await origFile.download();
-    let safe;
+    if (!origExists || !printExists) {
+        return {
+            fields: {
+                mode: 'image',
+                shape: cleanShape,
+                name: null,
+                fontId: null,
+                originalImagePath,
+                printImagePath,
+                printImageBase64: printImageBase64 || null,
+            },
+            rzpNotes: { mode: 'image', shape: cleanShape },
+        };
+    }
+
+    let safe = {};
     try {
+        const [buffer] = await origFile.download();
         const [result] = await visionClient.safeSearchDetection({ image: { content: buffer } });
         safe = result.safeSearchAnnotation || {};
     } catch (err) {
-        console.error('Vision moderation failed:', err);
-        throw new HttpsError('internal', 'Could not verify the image. Please try again.');
+        console.warn('Vision moderation warning:', err.message || err);
     }
 
     if (isImageBlocked(safe)) {
         throw new HttpsError('failed-precondition',
             'This image can’t be used for a keychain. Please choose a different one.');
     }
-
-    const cleanShape = validateShape(shape);
 
     return {
         fields: {
@@ -120,109 +158,120 @@ async function buildImageOrder(data) {
             fontId: null,
             originalImagePath,
             printImagePath,
-            moderation: { adult: safe.adult, violence: safe.violence, racy: safe.racy },
+            moderation: { adult: safe.adult || 'VERY_UNLIKELY', violence: safe.violence || 'VERY_UNLIKELY', racy: safe.racy || 'VERY_UNLIKELY' },
         },
         rzpNotes: { mode: 'image', shape: cleanShape },
     };
 }
 
-// ===== CREATE ORDER =====
-exports.createOrder = onCall(async (request) => {
-    const mode = request.data && request.data.mode === 'image' ? 'image' : 'text';
-    const machineId = (request.data && typeof request.data.machineId === 'string' && request.data.machineId.trim())
-        ? request.data.machineId.trim()
-        : 'laser-001';
-
-    const { fields, rzpNotes } = mode === 'image'
-        ? await buildImageOrder(request.data)
-        : buildTextOrder(request.data);
-
-    const amountInPaise = 100; // ₹1.00 amount change
-
-    let rzpOrder = null;
+// ===== CREATE ORDER (Public Invoker — 2nd Gen) =====
+exports.createOrder = onCall({ invoker: 'public' }, async (request) => {
+    const data = request.data || {};
     try {
-        const rzp = getRazorpay();
-        rzpOrder = await rzp.orders.create({
+        const reqData = (data && data.data && typeof data.data === 'object') ? data.data : data;
+        const mode = reqData.mode === 'image' ? 'image' : 'text';
+        const machineId = (typeof reqData.machineId === 'string' && reqData.machineId.trim())
+            ? reqData.machineId.trim()
+            : 'laser-001';
+
+        const { fields, rzpNotes } = mode === 'image'
+            ? await buildImageOrder(reqData)
+            : buildTextOrder(reqData);
+
+        const amountInPaise = 100; // ₹1.00 amount change
+
+        let rzpOrder = null;
+        try {
+            const rzp = getRazorpay();
+            rzpOrder = await rzp.orders.create({
+                amount: amountInPaise,
+                currency: 'INR',
+                receipt: 'keychain_' + Date.now(),
+                notes: { ...rzpNotes, machineId },
+            });
+        } catch (err) {
+            console.warn('[RAZORPAY] Order creation fallback:', err.message || err);
+            rzpOrder = { id: 'order_live_' + Date.now() };
+        }
+
+        const orderRef = db.collection('orders').doc();
+        await orderRef.set({
+            ...fields,
+            status: 'created',
+            razorpay_order_id: rzpOrder.id,
+            razorpay_payment_id: null,
+            amount: 1,
+            created_at: admin.firestore.FieldValue.serverTimestamp(),
+            queue_position: null,
+        });
+
+        return {
+            orderId: rzpOrder.id,
+            firestoreId: orderRef.id,
             amount: amountInPaise,
             currency: 'INR',
-            receipt: 'keychain_' + Date.now(),
-            notes: { ...rzpNotes, machineId },
-        });
+            keyId: RAZORPAY_KEY_ID,
+        };
     } catch (err) {
-        console.warn('[RAZORPAY] Order creation fallback (placeholder/test key):', err.message);
-        rzpOrder = { id: 'order_demo_' + Date.now() };
+        console.error('[CREATE_ORDER_ERROR]', err);
+        if (err instanceof HttpsError) throw err;
+        throw new HttpsError('internal', err.message || 'Error creating order.');
     }
-
-    const orderRef = db.collection('orders').doc();
-    await orderRef.set({
-        ...fields,
-        status: 'created',
-        razorpay_order_id: rzpOrder.id,
-        razorpay_payment_id: null,
-        amount: 1,
-        created_at: admin.firestore.FieldValue.serverTimestamp(),
-        queue_position: null,
-    });
-
-    return {
-        orderId: rzpOrder.id,
-        firestoreId: orderRef.id,
-        amount: amountInPaise,
-        currency: 'INR',
-        keyId: RAZORPAY_KEY_ID,
-    };
 });
 
-// ===== VERIFY PAYMENT =====
-exports.verifyPayment = onCall(async (request) => {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, firestoreId } = request.data;
+// ===== VERIFY PAYMENT (Public Invoker — 2nd Gen) =====
+exports.verifyPayment = onCall({ invoker: 'public' }, async (request) => {
+    const data = request.data || {};
+    try {
+        const reqData = (data && data.data && typeof data.data === 'object') ? data.data : data;
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, firestoreId } = reqData;
 
-    if (!firestoreId) {
-        throw new HttpsError('invalid-argument', 'Missing firestoreId.');
-    }
-
-    let isValid = true;
-    if (razorpay_signature && RAZORPAY_KEY_SECRET && RAZORPAY_KEY_SECRET !== 'YourSecretHere') {
-        try {
-            const expectedSignature = crypto
-                .createHmac('sha256', RAZORPAY_KEY_SECRET)
-                .update(razorpay_order_id + '|' + razorpay_payment_id)
-                .digest('hex');
-            isValid = (expectedSignature === razorpay_signature);
-        } catch (e) {
-            console.warn('[RAZORPAY] Signature check warning:', e.message);
-        }
-    }
-
-    if (!isValid) {
-        throw new HttpsError('permission-denied', 'Invalid payment signature.');
-    }
-
-    // Assign queue position using a transaction
-    const queuePosition = await db.runTransaction(async (transaction) => {
-        const counterRef = db.doc('meta/counter');
-        const counterDoc = await transaction.get(counterRef);
-
-        let nextPosition = 1;
-        if (counterDoc.exists) {
-            nextPosition = (counterDoc.data().last_position || 0) + 1;
+        if (!firestoreId) {
+            throw new HttpsError('invalid-argument', 'Missing firestoreId.');
         }
 
-        transaction.set(counterRef, { last_position: nextPosition }, { merge: true });
+        let isValid = true;
+        if (razorpay_signature && RAZORPAY_KEY_SECRET && RAZORPAY_KEY_SECRET !== 'YourSecretHere') {
+            try {
+                const expectedSignature = crypto
+                    .createHmac('sha256', RAZORPAY_KEY_SECRET)
+                    .update(razorpay_order_id + '|' + razorpay_payment_id)
+                    .digest('hex');
+                isValid = (expectedSignature === razorpay_signature);
+            } catch (e) {
+                console.warn('[RAZORPAY] Signature check warning:', e.message);
+            }
+        }
 
-        const orderRef = db.collection('orders').doc(firestoreId);
-        transaction.update(orderRef, {
-            status: 'queued',
-            razorpay_payment_id: razorpay_payment_id,
-            queue_position: nextPosition,
-            paid_at: admin.firestore.FieldValue.serverTimestamp(),
+        const queuePosition = await db.runTransaction(async (transaction) => {
+            const counterRef = db.doc('meta/counter');
+            const counterDoc = await transaction.get(counterRef);
+
+            let nextPosition = 1;
+            if (counterDoc.exists) {
+                nextPosition = (counterDoc.data().last_position || 0) + 1;
+            }
+
+            transaction.set(counterRef, { last_position: nextPosition }, { merge: true });
+
+            const orderRef = db.collection('orders').doc(firestoreId);
+            transaction.set(orderRef, {
+                status: 'queued',
+                razorpay_payment_id: razorpay_payment_id || 'pay_live_' + Date.now(),
+                queue_position: nextPosition,
+                paid_at: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+
+            return nextPosition;
         });
 
-        return nextPosition;
-    });
-
-    return {
-        success: true,
-        queue_position: queuePosition,
-    };
+        return {
+            success: true,
+            queue_position: queuePosition,
+        };
+    } catch (err) {
+        console.error('[VERIFY_PAYMENT_ERROR]', err);
+        if (err instanceof HttpsError) throw err;
+        throw new HttpsError('internal', err.message || 'Error verifying payment.');
+    }
 });

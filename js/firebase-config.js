@@ -2,10 +2,13 @@
 // TODO: Replace with your Firebase project config from:
 // Firebase Console → Project Settings → General → Your apps → Web app → Config
 const firebaseConfig = {
+  apiKey: "AIzaSyCSeM1HYc52r103T-KVd9oq9nFn1cy7xSU",
   authDomain: "laser-keychain-official.firebaseapp.com",
   projectId: "laser-keychain-official",
   storageBucket: "laser-keychain-official.firebasestorage.app",
   messagingSenderId: "424856013952",
+  appId: "1:424856013952:web:c402b6818957a2731eea65",
+  measurementId: "G-2GME8XMK2J"
 };
 
 

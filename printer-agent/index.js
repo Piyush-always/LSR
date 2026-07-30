@@ -3,29 +3,12 @@ const path = require('path');
 const fs = require('fs');
 const { generateKeychainImage } = require('./generate-image');
 const { imageToGcode } = require('./image-to-gcode');
-const { textToGcode, POSITION } = require('./text-to-gcode');
+const { textToGcode, POSITION, getPositionForShape } = require('./text-to-gcode');
 
 // Engraving mode: 'vector' (filled letters via opentype) or 'raster' (pixel scan)
 const ENGRAVING_MODE = process.env.ENGRAVING_MODE || 'vector';
 const { connect, sendGcodeFile, listPorts, disconnect, getCurrentPosition, SERIAL_CONFIG } = require('./laser-sender');
 
-// ===== CONFIGURATION =====
-const SERVICE_ACCOUNT_PATH = path.join(__dirname, 'service-account.json');
-const RECONNECT_INTERVAL_MS = 10000; // 10 seconds
-const BETWEEN_JOBS_DELAY_MS = 5000;  // pause before pulling the next queued order (operator swap time)
-// Cloud Storage bucket that holds uploaded image-order bitmaps. Must match the
-// project's Storage bucket (js/firebase-config.js → storageBucket).
-const STORAGE_BUCKET = process.env.STORAGE_BUCKET || 'laser-inv.firebasestorage.app';
-
-// Initialize Firebase Admin
-const serviceAccount = require(SERVICE_ACCOUNT_PATH);
-admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    storageBucket: STORAGE_BUCKET,
-});
-
-<<<<<<< Updated upstream
-=======
 // Load MACHINE_ID configuration (config.json, env variable, or default 'laser-001')
 let CONFIG = {};
 try {
@@ -37,10 +20,10 @@ try {
     console.warn('[CONFIG] Could not read config.json:', e.message);
 }
 const MACHINE_ID = process.env.MACHINE_ID || CONFIG.machineId || 'laser-001';
-// Load SERVICE_ACCOUNT and initialize Firebase Admin
 const SERVICE_ACCOUNT_PATH = path.join(__dirname, 'service-account.json');
 const STORAGE_BUCKET = process.env.STORAGE_BUCKET || 'laser-keychain-official.firebasestorage.app';
 const RECONNECT_INTERVAL_MS = 5000;
+const BETWEEN_JOBS_DELAY_MS = 5000;
 
 if (admin.apps.length === 0) {
     const serviceAccount = require(SERVICE_ACCOUNT_PATH);
@@ -49,7 +32,6 @@ if (admin.apps.length === 0) {
         storageBucket: STORAGE_BUCKET,
     });
 }
->>>>>>> Stashed changes
 const db = admin.firestore();
 
 // State
@@ -158,24 +140,13 @@ function startQueueListener() {
 
     console.log('Listening for new orders...\n');
 
-<<<<<<< Updated upstream
-    firestoreUnsubscribe = db.collection('orders')
-        .where('status', '==', 'queued')
-        .orderBy('queue_position', 'asc')
-        .onSnapshot((snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === 'added') {
-                    const order = { id: change.doc.id, ...change.doc.data() };
-                    console.log(`[QUEUE] New order: "${order.name}" (Position #${order.queue_position})`);
-=======
     const handleDocs = (snapshot) => {
         snapshot.docChanges().forEach((change) => {
             if (change.type === 'added') {
                 const order = { id: change.doc.id, ...change.doc.data() };
                 const orderMachine = order.machineId || 'laser-001';
                 if (orderMachine === MACHINE_ID) {
-                    console.log(`[QUEUE] New order for ${MACHINE_ID}: "${order.name}" (Position #${order.queue_position})`);
->>>>>>> Stashed changes
+                    console.log(`[QUEUE] New order for ${MACHINE_ID}: "${order.name || 'image'}" (Position #${order.queue_position})`);
                     processQueue();
                 }
             }
@@ -212,16 +183,6 @@ async function processQueue() {
 
     try {
         while (laserConnected) {
-<<<<<<< Updated upstream
-            const snapshot = await db.collection('orders')
-                .where('status', '==', 'queued')
-                .orderBy('queue_position', 'asc')
-                .limit(1)
-                .get();
-
-            if (snapshot.empty) {
-                console.log('[QUEUE] No more orders. Waiting...\n');
-=======
             let snapshot;
             try {
                 snapshot = await db.collection('orders')
@@ -242,23 +203,19 @@ async function processQueue() {
 
             if (matchingDocs.length === 0) {
                 console.log(`[QUEUE] No more orders for machine ${MACHINE_ID}. Waiting...\n`);
->>>>>>> Stashed changes
                 break;
             }
 
             const matchingDoc = matchingDocs[0];
 
             // Give the operator a few seconds to swap the keychain blank
-            // before the next job starts. Skipped for the very first job
-            // of a batch (laser already idle / blank already in place).
             if (!firstJob && BETWEEN_JOBS_DELAY_MS > 0) {
                 console.log(`[QUEUE] Pausing ${BETWEEN_JOBS_DELAY_MS / 1000}s before next job — swap the keychain now.\n`);
                 await sleep(BETWEEN_JOBS_DELAY_MS);
             }
             firstJob = false;
 
-            const doc = snapshot.docs[0];
-            const order = { id: doc.id, ...doc.data() };
+            const order = { id: matchingDoc.id, ...matchingDoc.data() };
 
             try {
                 await processOrder(order);
@@ -290,12 +247,15 @@ async function processQueue() {
 // ===== PROCESS SINGLE ORDER =====
 // Throws on any failure — caller is responsible for reverting the order.
 async function processOrder(order) {
-    const sx = POSITION.startOffsetX.toFixed(3);
-    const sy = POSITION.startOffsetY.toFixed(3);
+    const shape = order.shape || 'rectangle';
+    const targetPos = getPositionForShape(shape);
+    const sx = targetPos.startOffsetX.toFixed(3);
+    const sy = targetPos.startOffsetY.toFixed(3);
     const displayName = order.name || (order.mode === 'image' ? 'image upload' : 'keychain');
 
     console.log(`\n[PRINT] ============================`);
     console.log(`[PRINT] Printing: "${displayName}" (${order.mode || 'text'})`);
+    console.log(`[PRINT] Shape Holder: ${shape.toUpperCase()}`);
     console.log(`[PRINT] Queue Position: #${order.queue_position}`);
     console.log(`[PRINT] Start position: (${sx}, ${sy}) mm    (returns to HOME after)`);
     console.log(`[PRINT] ============================`);
@@ -312,12 +272,10 @@ async function processOrder(order) {
     };
     lastProgressAt = 0;
     await publishStatus({ current: currentJob });
-    logEvent(`Printing #${order.queue_position} — ${displayName}`);
+    logEvent(`Printing #${order.queue_position} — ${displayName} (${shape})`);
 
     // Sanity: where is the laser physically right now?
     await logCurrentPosition('Current position');
-
-    const shape = order.shape || 'rectangle';
 
     // Generate G-code — branch on the order type.
     let gcodePath;
@@ -327,7 +285,7 @@ async function processOrder(order) {
         console.log('[STEP 1] Downloading uploaded image...');
         const localImage = await downloadPrintImage(order);
         console.log(`[STEP 2] Generating raster G-code from image (shape=${shape})...`);
-        gcodePath = await imageToGcode(localImage, order.id);
+        gcodePath = await imageToGcode(localImage, order.id, shape);
     } else {
         // Text/name order (mode 'text' or legacy orders with no mode field).
         const label = order.name || '(unnamed)';
@@ -341,7 +299,7 @@ async function processOrder(order) {
         } else {
             console.log(`[STEP 2] Generating raster G-code (shape=${shape})...`);
             const imagePath = generateKeychainImage(label, order.id);
-            gcodePath = await imageToGcode(imagePath, order.id);
+            gcodePath = await imageToGcode(imagePath, order.id, shape);
         }
     }
 

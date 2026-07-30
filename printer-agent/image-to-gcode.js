@@ -1,7 +1,7 @@
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const fs = require('fs');
 const path = require('path');
-const { POSITION } = require('./text-to-gcode');
+const { POSITION, getPositionForShape } = require('./text-to-gcode');
 
 // =====================================================================
 //  IMAGE → G-CODE — raster engraving for uploaded logo/line-art images.
@@ -38,9 +38,10 @@ const SETTINGS = {
  *
  * @param {string} imagePath - Path to the PNG image (white = burn)
  * @param {string} orderId - Used for filename
+ * @param {string} shape - Keychain shape identifier ('rectangle', 'circle', 'heart')
  * @returns {string} Path to the generated .gcode file
  */
-async function imageToGcode(imagePath, orderId) {
+async function imageToGcode(imagePath, orderId, shape = 'rectangle') {
     const img = await loadImage(imagePath);
 
     // Engrave-resolution grid — same math as the web client.
@@ -52,8 +53,9 @@ async function imageToGcode(imagePath, orderId) {
     ctx.drawImage(img, 0, 0, cols, rows);
     const pixels = ctx.getImageData(0, 0, cols, rows).data;
 
-    const dx = POSITION.startOffsetX;
-    const dy = POSITION.startOffsetY;
+    const pos = getPositionForShape(shape);
+    const dx = pos.startOffsetX;
+    const dy = pos.startOffsetY;
     // Machine Y (Y-up) of the image area's TOP edge. row 0 sits here; deeper
     // rows step downward (decreasing machine Y).
     const areaTopY = KEYCHAIN_HEIGHT - IMAGE_AREA.y;   // 35 - 4 = 31
