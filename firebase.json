@@ -3,12 +3,16 @@
     "public": ".",
     "ignore": [
       "firebase.json",
-      "**/node_modules/**",
+      ".*",
+      ".git/**",
+      ".firebase/**",
+      "node_modules/**",
       "functions/**",
       "printer-agent/**",
-      "README.md",
-      ".gitignore",
-      ".firebaserc"
+      "assets/**",
+      "qr-codes/**",
+      "printer-agent-1.zip",
+      "README.md"
     ],
     "headers": [
       {

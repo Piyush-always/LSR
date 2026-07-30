@@ -243,6 +243,45 @@ body::before {
     width: 100%;
 }
 
+/* Shape Pills for Design Screens */
+.shape-selector-pills {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    width: 100%;
+}
+
+.shape-pill {
+    flex: 1;
+    max-width: 140px;
+    padding: 8px 12px;
+    border-radius: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.05);
+    color: #a0a0a0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.shape-pill:hover {
+    border-color: rgba(0, 229, 255, 0.5);
+    color: #fff;
+}
+
+.shape-pill.selected {
+    border-color: #00e5ff;
+    background: rgba(0, 229, 255, 0.18);
+    color: #00e5ff;
+    box-shadow: 0 0 12px rgba(0, 229, 255, 0.35);
+}
+
 .shape-card {
     position: relative;
     display: flex;

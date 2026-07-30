@@ -24,6 +24,32 @@ admin.initializeApp({
     storageBucket: STORAGE_BUCKET,
 });
 
+<<<<<<< Updated upstream
+=======
+// Load MACHINE_ID configuration (config.json, env variable, or default 'laser-001')
+let CONFIG = {};
+try {
+    const configPath = path.join(__dirname, 'config.json');
+    if (fs.existsSync(configPath)) {
+        CONFIG = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    }
+} catch (e) {
+    console.warn('[CONFIG] Could not read config.json:', e.message);
+}
+const MACHINE_ID = process.env.MACHINE_ID || CONFIG.machineId || 'laser-001';
+// Load SERVICE_ACCOUNT and initialize Firebase Admin
+const SERVICE_ACCOUNT_PATH = path.join(__dirname, 'service-account.json');
+const STORAGE_BUCKET = process.env.STORAGE_BUCKET || 'laser-keychain-official.firebasestorage.app';
+const RECONNECT_INTERVAL_MS = 5000;
+
+if (admin.apps.length === 0) {
+    const serviceAccount = require(SERVICE_ACCOUNT_PATH);
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        storageBucket: STORAGE_BUCKET,
+    });
+}
+>>>>>>> Stashed changes
 const db = admin.firestore();
 
 // State
@@ -132,6 +158,7 @@ function startQueueListener() {
 
     console.log('Listening for new orders...\n');
 
+<<<<<<< Updated upstream
     firestoreUnsubscribe = db.collection('orders')
         .where('status', '==', 'queued')
         .orderBy('queue_position', 'asc')
@@ -140,12 +167,36 @@ function startQueueListener() {
                 if (change.type === 'added') {
                     const order = { id: change.doc.id, ...change.doc.data() };
                     console.log(`[QUEUE] New order: "${order.name}" (Position #${order.queue_position})`);
+=======
+    const handleDocs = (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+                const order = { id: change.doc.id, ...change.doc.data() };
+                const orderMachine = order.machineId || 'laser-001';
+                if (orderMachine === MACHINE_ID) {
+                    console.log(`[QUEUE] New order for ${MACHINE_ID}: "${order.name}" (Position #${order.queue_position})`);
+>>>>>>> Stashed changes
                     processQueue();
                 }
-            });
-        }, (error) => {
-            console.error('[ERROR] Firestore listener failed:', error);
+            }
         });
+    };
+
+    try {
+        firestoreUnsubscribe = db.collection('orders')
+            .where('status', '==', 'queued')
+            .orderBy('queue_position', 'asc')
+            .onSnapshot(handleDocs, (error) => {
+                console.warn('[WARN] Ordered listener failed, trying fallback:', error.message);
+                firestoreUnsubscribe = db.collection('orders')
+                    .where('status', '==', 'queued')
+                    .onSnapshot(handleDocs);
+            });
+    } catch (err) {
+        firestoreUnsubscribe = db.collection('orders')
+            .where('status', '==', 'queued')
+            .onSnapshot(handleDocs);
+    }
 }
 
 // ===== QUEUE PROCESSOR =====
@@ -161,6 +212,7 @@ async function processQueue() {
 
     try {
         while (laserConnected) {
+<<<<<<< Updated upstream
             const snapshot = await db.collection('orders')
                 .where('status', '==', 'queued')
                 .orderBy('queue_position', 'asc')
@@ -169,8 +221,32 @@ async function processQueue() {
 
             if (snapshot.empty) {
                 console.log('[QUEUE] No more orders. Waiting...\n');
+=======
+            let snapshot;
+            try {
+                snapshot = await db.collection('orders')
+                    .where('status', '==', 'queued')
+                    .orderBy('queue_position', 'asc')
+                    .get();
+            } catch (e) {
+                // Fallback if index building
+                snapshot = await db.collection('orders')
+                    .where('status', '==', 'queued')
+                    .get();
+            }
+
+            // Filter docs matching THIS machine ID and sort in-memory
+            const matchingDocs = snapshot.docs
+                .filter(doc => (doc.data().machineId || 'laser-001') === MACHINE_ID)
+                .sort((a, b) => (a.data().queue_position || 0) - (b.data().queue_position || 0));
+
+            if (matchingDocs.length === 0) {
+                console.log(`[QUEUE] No more orders for machine ${MACHINE_ID}. Waiting...\n`);
+>>>>>>> Stashed changes
                 break;
             }
+
+            const matchingDoc = matchingDocs[0];
 
             // Give the operator a few seconds to swap the keychain blank
             // before the next job starts. Skipped for the very first job
@@ -304,14 +380,23 @@ async function processOrder(order) {
 // local file for rasterising. Throws on missing path / download failure (the
 // caller reverts the order to queued and retries).
 async function downloadPrintImage(order) {
-    if (!order.printImagePath) {
-        throw new Error('Image order is missing printImagePath');
-    }
     const outputDir = path.join(__dirname, 'output');
     if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
     }
     const localPath = path.join(outputDir, `upload_${order.id}.png`);
+
+    if (order.printImageBase64) {
+        const base64Data = order.printImageBase64.replace(/^data:image\/\w+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        fs.writeFileSync(localPath, buffer);
+        console.log(`[IMAGE] Decoded Base64 image → ${localPath}`);
+        return localPath;
+    }
+
+    if (!order.printImagePath) {
+        throw new Error('Image order is missing printImagePath');
+    }
     await admin.storage().bucket().file(order.printImagePath).download({ destination: localPath });
     console.log(`[IMAGE] Downloaded ${order.printImagePath} → ${localPath}`);
     return localPath;
