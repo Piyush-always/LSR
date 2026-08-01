@@ -5,8 +5,20 @@ const fs = require('fs');
 // ===== SERIAL PORT SETTINGS =====
 // Adjust COM port for your Creality CV-01 Pro
 // Check Device Manager → Ports (COM & LPT) on the printer laptop
+function getEffectivePort() {
+    if (process.env.LASER_PORT) return process.env.LASER_PORT;
+    try {
+        if (fs.existsSync('/dev')) {
+            const files = fs.readdirSync('/dev');
+            const found = files.find(f => f.startsWith('cu.usbmodem') || f.startsWith('cu.usbserial') || f.startsWith('cu.wchusbserial'));
+            if (found) return '/dev/' + found;
+        }
+    } catch (e) {}
+    return '/dev/cu.usbmodem1234561';
+}
+
 const SERIAL_CONFIG = {
-    port: process.env.LASER_PORT || '/dev/tty.usbmodem1234561',
+    get port() { return getEffectivePort(); },
     baudRate: 115200,
 };
 
@@ -21,17 +33,18 @@ let isConnected = false;
  * Connect to the laser printer via serial port.
  * Waits for GRBL banner, then sends init sequence.
  */
-async function connect() {
-    // If there's a stale port handle from a previous failed session, close it
-    // cleanly first. Windows gives "Access denied" if we try to open a COM port
-    // that another handle (even in this same process) still holds.
+async function connect(retryCount = 0) {
     await forceClose();
 
+    const targetPort = SERIAL_CONFIG.port;
+
     return new Promise((resolve, reject) => {
-        console.log(`[SERIAL] Connecting to ${SERIAL_CONFIG.port} at ${SERIAL_CONFIG.baudRate} baud...`);
+        console.log(`[SERIAL] Connecting to ${targetPort} at ${SERIAL_CONFIG.baudRate} baud...`);
+
+        let openResolved = false;
 
         serialPort = new SerialPort({
-            path: SERIAL_CONFIG.port,
+            path: targetPort,
             baudRate: SERIAL_CONFIG.baudRate,
         }, (err) => {
             if (err) {
@@ -58,6 +71,12 @@ async function connect() {
         serialPort.on('close', () => {
             console.log('[SERIAL] Port closed');
             isConnected = false;
+            if (!openResolved && retryCount < 3) {
+                console.log('[SERIAL] Creality USB reset detected on connect, retrying in 1s...');
+                setTimeout(() => {
+                    connect(retryCount + 1).then(resolve).catch(reject);
+                }, 1000);
+            }
         });
 
         serialPort.on('open', async () => {
@@ -67,16 +86,26 @@ async function connect() {
                 await waitForBanner();
                 console.log('[SERIAL] GRBL banner received');
 
-                isConnected = true;
+                if (!serialPort || !serialPort.isOpen) {
+                    throw new Error('Port closed during startup banner');
+                }
 
-                // Send machine init sequence while GRBL is IDLE
                 await sendInitSequence();
                 console.log('[SERIAL] Init sequence sent');
 
+                isConnected = true;
+                openResolved = true;
                 resolve();
             } catch (err) {
                 isConnected = false;
-                reject(err);
+                if (!openResolved && retryCount < 3) {
+                    console.log(`[SERIAL] Connect attempt ${retryCount + 1} failed (${err.message}), retrying...`);
+                    setTimeout(() => {
+                        connect(retryCount + 1).then(resolve).catch(reject);
+                    }, 1000);
+                } else {
+                    reject(err);
+                }
             }
         });
     });
@@ -100,7 +129,7 @@ function waitForBanner() {
 
         const onData = (data) => {
             const line = data.toString().trim();
-            if (/^Grbl/i.test(line)) {
+            if (/^Grbl/i.test(line) || /homtary/i.test(line) || /^ep=/i.test(line)) {
                 finish();
             }
         };
@@ -120,8 +149,8 @@ async function sendInitSequence() {
     // port already triggers a DTR-pulse reset (which is why we got the
     // banner). Sending another reset causes the driver to close the port.
 
-    // Small settle delay after the banner
-    await sleep(300);
+    // Settle delay after the banner for Creality ESP32 motor driver init
+    await sleep(1500);
 
     // Unlock from alarm state (ignore errors — not always needed)
     try {
@@ -207,16 +236,16 @@ async function sendGcodeFile(gcodePath, onProgress) {
     }
 
     const fileContent = fs.readFileSync(gcodePath, 'utf-8');
-    const lines = fileContent.split('\n').filter(line => {
-        const trimmed = line.trim();
-        return trimmed && !trimmed.startsWith(';');
-    });
+    const lines = fileContent
+        .split('\n')
+        .map(line => line.split(';')[0].trim())
+        .filter(Boolean);
 
     const totalLines = lines.length;
     console.log(`[SERIAL] Sending ${totalLines} G-code commands...`);
 
     for (let i = 0; i < totalLines; i++) {
-        const line = lines[i].trim();
+        const line = lines[i];
         await sendCommand(line);
 
         if (onProgress && (i % 100 === 0 || i === totalLines - 1)) {

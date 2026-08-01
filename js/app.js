@@ -164,18 +164,34 @@ btnStart.addEventListener('click', () => {
     showScreen('shape');
 });
 
-// ===== SHAPE SELECTION =====
-if (shapeCards) {
-    shapeCards.forEach(card => {
-        card.addEventListener('click', () => {
-            const shapeId = card.dataset.shapeId;
-            if (!window.KEYCHAIN_SHAPES || !window.KEYCHAIN_SHAPES[shapeId]) return;
-            selectedShapeId = shapeId;
-            shapeCards.forEach(c => c.classList.toggle('selected', c.dataset.shapeId === shapeId));
-            updateShapePreviews();
-        });
+function selectShape(shapeId) {
+    if (!window.KEYCHAIN_SHAPES || !window.KEYCHAIN_SHAPES[shapeId]) return;
+    selectedShapeId = shapeId;
+    document.querySelectorAll('.shape-card').forEach(c => {
+        c.classList.toggle('selected', c.dataset.shapeId === shapeId);
     });
+    document.querySelectorAll('.shape-pill').forEach(p => {
+        p.classList.toggle('selected', p.dataset.shapeId === shapeId);
+    });
+    updateShapePreviews();
 }
+
+function resetShapeState() {
+    selectShape(window.DEFAULT_SHAPE_ID || 'rectangle');
+}
+
+// ===== SHAPE SELECTION =====
+document.querySelectorAll('.shape-card').forEach(card => {
+    card.addEventListener('click', () => {
+        selectShape(card.dataset.shapeId);
+    });
+});
+
+document.querySelectorAll('.shape-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+        selectShape(pill.dataset.shapeId);
+    });
+});
 
 if (btnShapeContinue) {
     btnShapeContinue.addEventListener('click', () => {
@@ -349,11 +365,31 @@ function renderKeychainText() {
 
     textEl.textContent = display;
     textEl.setAttribute('font-family', font.family);
-    textEl.setAttribute('font-size', font.fixedCapHeight * shape.textArea.fontScale);
+    
+    const fontScale = shape.textArea.fontScale || 1.0;
+    const baseFontSize = font.fixedCapHeight * fontScale;
+    textEl.setAttribute('font-size', baseFontSize);
     textEl.setAttribute('x', shape.textArea.x);
     textEl.setAttribute('y', shape.textArea.y);
     textEl.setAttribute('text-anchor', shape.textArea.anchor);
     textEl.setAttribute('dominant-baseline', shape.textArea.baseline);
+
+    const maxW = shape.textArea.maxTextWidth || 50;
+
+    // Measure rendered text width and scale down if it exceeds shape boundary
+    try {
+        const bbox = textEl.getBBox();
+        if (bbox && bbox.width > maxW && bbox.width > 0) {
+            const scale = maxW / bbox.width;
+            textEl.setAttribute('font-size', (baseFontSize * scale).toFixed(3));
+        }
+    } catch (e) {
+        const approxWidth = display.length * (baseFontSize * 0.65);
+        if (approxWidth > maxW) {
+            const scale = maxW / approxWidth;
+            textEl.setAttribute('font-size', (baseFontSize * scale).toFixed(3));
+        }
+    }
 }
 
 function updateCharCount() {

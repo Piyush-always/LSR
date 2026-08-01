@@ -17,9 +17,9 @@ const path = require('path');
 // ##                                                                 ##
 // Precise shape holder offsets mapped from physical bed measurements (in mm relative to Home)
 const SHAPE_POSITIONS = {
-    circle:    { startOffsetX: 276.38, startOffsetY: 110.66 },
-    rectangle: { startOffsetX: 376.05, startOffsetY: 197.77 },
-    heart:     { startOffsetX: 383.05, startOffsetY: 81.27 },
+    circle:    { startOffsetX: 0, startOffsetY: 0 },
+    rectangle: { startOffsetX: 0, startOffsetY: 0 },
+    heart:     { startOffsetX: 0, startOffsetY: 0 },
 };
 
 function getPositionForShape(shape) {
@@ -122,14 +122,14 @@ async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle')
         paths.push(circlePolyline(25, 25, 23, SETTINGS.circleSegments));
         // Hole at (25, 43) in Y-up (7 mm from top)
         paths.push(circlePolyline(25, 43, SETTINGS.holeRadius, SETTINGS.circleSegments));
-        const textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize, 25, 22);
+        const textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize * 0.85, 25, 22, 36);
         paths.push(...textPolylines);
     } else if (shape === 'heart') {
         // Heart 55x50 mm
         paths.push(heartPolyline(27.5, 24, 50, 44));
         // Hole at (27.5, 43) in Y-up (7 mm from top)
         paths.push(circlePolyline(27.5, 43, SETTINGS.holeRadius, SETTINGS.circleSegments));
-        const textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize, 27.5, 25);
+        const textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize * 0.85, 27.5, 25, 32);
         paths.push(...textPolylines);
     } else {
         // Rectangle 72x35 mm (Default)
@@ -141,7 +141,7 @@ async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle')
             SETTINGS.cornerRadius
         ));
         paths.push(circlePolyline(SETTINGS.holeX, SETTINGS.keychainHeight - SETTINGS.holeY, SETTINGS.holeRadius, SETTINGS.circleSegments));
-        const textPolylines = buildTextPolylines(cleanName, cleanFontId, fontSize);
+        const textPolylines = buildTextPolylines(cleanName, cleanFontId, fontSize * 1.0, 42, 17.5, 52);
         paths.push(...textPolylines);
     }
 
@@ -163,7 +163,7 @@ async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle')
 // =================================================================
 // BUILD TEXT POLYLINES — char-by-char, mixed fonts
 // =================================================================
-function buildTextPolylines(text, fontId, fontSize, centerX = (SETTINGS.textLeft + SETTINGS.textRight) / 2, centerY = SETTINGS.keychainHeight / 2) {
+function buildTextPolylines(text, fontId, baseFontSize, centerX = (SETTINGS.textLeft + SETTINGS.textRight) / 2, centerY = SETTINGS.keychainHeight / 2, maxTextWidth = 52) {
     const textFont = loadFontById(fontId);
     const emojiFont = loadEmojiFont();
 
@@ -185,10 +185,25 @@ function buildTextPolylines(text, fontId, fontSize, centerX = (SETTINGS.textLeft
         }
 
         glyphPlacements.push({ font, glyph, x: cursorX });
-        cursorX += (glyph.advanceWidth / font.unitsPerEm) * fontSize;
+        cursorX += (glyph.advanceWidth / font.unitsPerEm) * baseFontSize;
     }
 
-    const totalWidth = cursorX;
+    const unscaledTotalWidth = cursorX;
+
+    // Scale font down if text exceeds maximum width for shape
+    let effectiveFontSize = baseFontSize;
+    if (unscaledTotalWidth > maxTextWidth && unscaledTotalWidth > 0) {
+        const scale = maxTextWidth / unscaledTotalWidth;
+        effectiveFontSize = baseFontSize * scale;
+    }
+
+    // Re-calculate placement X coordinates with effectiveFontSize
+    let scaledCursorX = 0;
+    for (const item of glyphPlacements) {
+        item.x = scaledCursorX;
+        scaledCursorX += (item.glyph.advanceWidth / item.font.unitsPerEm) * effectiveFontSize;
+    }
+    const totalWidth = scaledCursorX;
 
     // Center horizontally in the text area
     const offsetX = centerX - totalWidth / 2;
@@ -197,12 +212,12 @@ function buildTextPolylines(text, fontId, fontSize, centerX = (SETTINGS.textLeft
     // ascenders going DOWN (Y-down convention). We need Y-up for the laser.
     // Place baseline at centerY - capHeight*0.35 so the cap-height-tall
     // text appears centered.
-    const baselineY = centerY - fontSize * 0.35;
+    const baselineY = centerY - effectiveFontSize * 0.35;
 
     const polylines = [];
     for (const { glyph, x } of glyphPlacements) {
         // opentype uses (x, y) with y being the baseline; we pass y=0 and flip later
-        const glyphPath = glyph.getPath(x, 0, fontSize);
+        const glyphPath = glyph.getPath(x, 0, effectiveFontSize);
         const glyphPolylines = flattenOpentypePath(glyphPath);
         for (const poly of glyphPolylines) {
             const transformed = poly.map(([px, py]) => [
@@ -330,11 +345,10 @@ function pathsToGcode(polylines, orderId, name, fontId, shape = 'rectangle') {
     // runs in that shared coordinate system, so the laser reliably returns
     // to the exact same HOME after each job. That's what prevents drift
     // between prints.
-    lines.push('G21          ; mm mode');
-    lines.push('G90          ; absolute positioning');
-    lines.push('M5           ; laser off');
-    lines.push(`G0 F${SETTINGS.travelRate}`);
-    lines.push(`G1 F${SETTINGS.feedRate}`);
+    lines.push('G21');          // mm mode
+    lines.push('G90');          // absolute positioning
+    lines.push('M5');           // laser off
+    lines.push(`F${SETTINGS.feedRate}`); // set default feedrate
     lines.push('');
 
     const pos = getPositionForShape(shape);

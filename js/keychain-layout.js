@@ -44,6 +44,7 @@ window.KEYCHAIN_SHAPES = {
             anchor: 'middle',
             baseline: 'central',
             fontScale: 1.0,
+            maxTextWidth: 52,
         },
         imageArea: {
             x: 13,
@@ -92,6 +93,7 @@ window.KEYCHAIN_SHAPES = {
             anchor: 'middle',
             baseline: 'central',
             fontScale: 0.85,
+            maxTextWidth: 36,
         },
         imageArea: {
             x: 2,
@@ -140,6 +142,7 @@ window.KEYCHAIN_SHAPES = {
             anchor: 'middle',
             baseline: 'central',
             fontScale: 0.85,
+            maxTextWidth: 32,
         },
         imageArea: {
             x: 2,
