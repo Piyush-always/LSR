@@ -166,12 +166,6 @@
         <div class="container">
             <h2 class="section-title">Design Your Keychain</h2>
 
-            <div class="shape-selector-pills">
-                <button type="button" class="shape-pill selected" data-shape-id="rectangle">⏹️ Rectangle</button>
-                <button type="button" class="shape-pill" data-shape-id="circle">⭕ Circle</button>
-                <button type="button" class="shape-pill" data-shape-id="heart">❤️ Heart</button>
-            </div>
-
             <div class="preview-box">
                 <div class="keychain-preview" id="keychain-preview">
                     <svg viewBox="-7 -7 86 49" class="keychain-svg" id="keychain-svg">
@@ -249,12 +243,6 @@
     <section id="screen-image" class="screen">
         <div class="container">
             <h2 class="section-title">Upload Your Image</h2>
-
-            <div class="shape-selector-pills">
-                <button type="button" class="shape-pill selected" data-shape-id="rectangle">⏹️ Rectangle</button>
-                <button type="button" class="shape-pill" data-shape-id="circle">⭕ Circle</button>
-                <button type="button" class="shape-pill" data-shape-id="heart">❤️ Heart</button>
-            </div>
 
             <div class="preview-box">
                 <div class="img-keychain" id="img-keychain">
@@ -396,6 +384,15 @@
             <div class="loader-ring"></div>
             <h2 class="section-title" id="payment-title">Processing Payment...</h2>
             <p class="payment-sub" id="payment-sub">Please complete the payment in the Razorpay window.</p>
+
+            <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 12px; align-items: center;">
+                <button type="button" class="btn btn-secondary" id="btn-reopen-modal" style="width: 100%; max-width: 320px;">
+                    🔄 Generate Fresh QR Code
+                </button>
+                <button type="button" class="btn btn-primary" id="btn-open-direct-link" style="width: 100%; max-width: 320px;">
+                    ⚡ Pay via Direct Page (GPay / PhonePe / QR)
+                </button>
+            </div>
         </div>
     </section>
 
@@ -540,15 +537,15 @@
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
     <!-- Shared layout constants + image processor (must load before app.js) -->
-    <script src="js/keychain-layout.js?v=5"></script>
-    <script src="js/image-processor.js?v=5"></script>
+    <script src="js/keychain-layout.js?v=11"></script>
+    <script src="js/image-processor.js?v=11"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 
     <!-- App -->
-    <script src="js/app.js?v=5"></script>
+    <script src="js/app.js?v=11"></script>
 
     <!-- Dev/ops debug panel — only activates with ?debug=1 -->
-    <script src="js/debug-panel.js?v=5"></script>
+    <script src="js/debug-panel.js?v=11"></script>
 </body>
 </html>

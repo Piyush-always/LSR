@@ -770,6 +770,10 @@ function getMachineId() {
     return params.get('machineId') || params.get('m') || 'laser-001';
 }
 
+let lastPaymentMode = 'text';
+let lastPaymentPayload = null;
+let lastDisplayName = '';
+
 async function initiatePayment(mode) {
     showScreen('payment');
 
@@ -804,17 +808,45 @@ async function initiatePayment(mode) {
             displayName = name;
         }
 
-        setPaymentMessage('Processing Payment...', 'Complete payment in the Razorpay window.');
+        lastPaymentMode = mode;
+        lastPaymentPayload = payload;
+        lastDisplayName = displayName;
 
+        setPaymentMessage('Preparing Payment...', 'Redirecting to Razorpay secure checkout.');
+
+        // Save order payload to local storage for return redirect recovery
+        localStorage.setItem('pending_order_payload', JSON.stringify({ ...payload, displayName, mode }));
+
+        // Primary Flow: Create & redirect to Razorpay Payment Link (bypasses iframe QR issues)
+        try {
+            const linkRes = await fetch('https://us-central1-laser-keychain-official.cloudfunctions.net/createPaymentLinkHttp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ displayName, callbackUrl: window.location.origin + window.location.pathname })
+            });
+            const linkData = await linkRes.json();
+            if (linkData && linkData.short_url) {
+                window.location.href = linkData.short_url;
+                return;
+            }
+        } catch (err) {
+            console.warn('Payment link creation fallback to modal:', err);
+        }
+
+        // Secondary Fallback: Create Order ID & open popup modal
         let orderId = null;
         try {
-            const createOrderFn = functions.httpsCallable('createOrder');
-            const res = await createOrderFn(payload);
-            if (res && res.data && res.data.orderId) {
-                orderId = res.data.orderId;
+            const httpRes = await fetch('https://us-central1-laser-keychain-official.cloudfunctions.net/createOrderHttp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const httpData = await httpRes.json();
+            if (httpData && httpData.orderId) {
+                orderId = httpData.orderId;
             }
-        } catch (e) {
-            console.warn('Backend order creation warning, opening standard checkout:', e);
+        } catch (err) {
+            console.warn('HTTP order creation warning:', err);
         }
 
         if (typeof Razorpay !== 'undefined') {
@@ -837,7 +869,10 @@ function openRazorpayCheckout({ displayName, mode, payload, orderId }) {
         description: mode === 'image' ? 'Custom image keychain' : ('Custom keychain: "' + displayName + '"'),
         prefill: {
             name: mode === 'image' ? 'Customer' : displayName,
-            contact: '9999999999',
+        },
+        retry: {
+            enabled: true,
+            max_count: 4,
         },
         theme: { color: '#00e5ff' },
         handler: async function (response) {
@@ -846,6 +881,7 @@ function openRazorpayCheckout({ displayName, mode, payload, orderId }) {
             await finalizeOrderAndQueue(payload, displayName, mode);
         },
         modal: {
+            confirm_close: true,
             ondismiss: function () {
                 returnToDesign(mode);
             },
@@ -1182,6 +1218,70 @@ window.addEventListener('beforeunload', (e) => {
     }
 });
 
+// ===== PAYMENT FALLBACK BUTTONS =====
+const btnReopenModal = document.getElementById('btn-reopen-modal');
+const btnOpenDirectLink = document.getElementById('btn-open-direct-link');
+
+if (btnReopenModal) {
+    btnReopenModal.addEventListener('click', () => {
+        initiatePayment(lastPaymentMode);
+    });
+}
+
+if (btnOpenDirectLink) {
+    btnOpenDirectLink.addEventListener('click', async () => {
+        btnOpenDirectLink.disabled = true;
+        const originalText = btnOpenDirectLink.textContent;
+        btnOpenDirectLink.textContent = 'Generating Direct Page Link...';
+        try {
+            localStorage.setItem('pending_order_payload', JSON.stringify({ ...lastPaymentPayload, displayName: lastDisplayName, mode: lastPaymentMode }));
+            const linkRes = await fetch('https://us-central1-laser-keychain-official.cloudfunctions.net/createPaymentLinkHttp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ displayName: lastDisplayName, callbackUrl: window.location.origin + window.location.pathname })
+            });
+            const linkData = await linkRes.json();
+            if (linkData && linkData.short_url) {
+                window.location.href = linkData.short_url;
+            } else {
+                alert('Could not open direct link. Opening fresh checkout...');
+                initiatePayment(lastPaymentMode);
+            }
+        } catch (e) {
+            console.error('Direct link error:', e);
+            alert('Opening fresh checkout...');
+            initiatePayment(lastPaymentMode);
+        } finally {
+            btnOpenDirectLink.disabled = false;
+            btnOpenDirectLink.textContent = originalText;
+        }
+    });
+}
+
+// Check for return from direct payment link
+function checkRedirectPayment() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('payment') || urlParams.has('razorpay_payment_id') || urlParams.has('payment_id') || urlParams.has('razorpay_payment_link_id') || urlParams.has('razorpay_payment_link_status')) {
+        const stored = localStorage.getItem('pending_order_payload');
+        if (stored) {
+            try {
+                const payload = JSON.parse(stored);
+                payload.razorpay_payment_id = urlParams.get('razorpay_payment_id') || urlParams.get('payment_id') || ('pay_direct_' + Date.now());
+                if (urlParams.has('razorpay_payment_link_id')) {
+                    payload.razorpay_order_id = urlParams.get('razorpay_payment_link_id');
+                }
+                localStorage.removeItem('pending_order_payload');
+                window.history.replaceState({}, document.title, window.location.pathname);
+                finalizeOrderAndQueue(payload, payload.displayName || 'Customer', payload.mode || 'text');
+                return true;
+            } catch (e) {
+                console.warn('Redirect payment recovery warning:', e);
+            }
+        }
+    }
+    return false;
+}
+
 // ===== INITIAL BOOT =====
 buildFontChips();
 buildEmojiPanel();
@@ -1191,6 +1291,7 @@ positionImageCanvas();
 resetImageState();
 
 (function bootScreen() {
+    if (checkRedirectPayment()) return;
     if (recoverPendingOrder()) return; // showed success already
     const target = readScreenFromHash() || 'welcome';
     suppressPushState = true;
