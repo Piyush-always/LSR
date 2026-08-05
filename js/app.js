@@ -17,12 +17,15 @@ let suppressPushState = false; // prevents pushState during popstate handling
 const imageProcessor = new window.KeychainImageProcessor();
 
 // ===== DOM ELEMENTS =====
+const createScreen = document.getElementById('screen-create');
+
 const screens = {
     welcome: document.getElementById('screen-welcome'),
-    shape: document.getElementById('screen-shape'),
-    choose: document.getElementById('screen-choose'),
-    name: document.getElementById('screen-name'),
-    image: document.getElementById('screen-image'),
+    create: createScreen,
+    shape: createScreen,
+    choose: createScreen,
+    name: createScreen,
+    image: createScreen,
     payment: document.getElementById('screen-payment'),
     success: document.getElementById('screen-success'),
 };
@@ -95,6 +98,31 @@ const rotateRight = document.getElementById('rotate-right');
 
 let cropper = null;
 
+// ===== MODE SWITCHING =====
+function setDesignMode(mode) {
+    currentMode = mode;
+    const isText = mode === 'text';
+    
+    if (typeName) typeName.classList.toggle('active', isText);
+    if (typeImage) typeImage.classList.toggle('active', !isText);
+    
+    const panelText = document.getElementById('mode-panel-text');
+    const panelImage = document.getElementById('mode-panel-image');
+    const previewText = document.getElementById('keychain-preview-box');
+    const previewImage = document.getElementById('img-preview-box');
+    
+    if (panelText) panelText.hidden = !isText;
+    if (panelImage) panelImage.hidden = isText;
+    if (previewText) previewText.hidden = !isText;
+    if (previewImage) previewImage.hidden = isText;
+    
+    if (isText) {
+        if (nameInput) nameInput.focus();
+    } else {
+        positionImageCanvas();
+    }
+}
+
 // ===== SCREEN NAVIGATION (with browser-back support) =====
 function showScreen(screenName) {
     showScreenInternal(screenName);
@@ -106,20 +134,28 @@ function showScreen(screenName) {
 }
 
 function showScreenInternal(screenName) {
-    if (!screens[screenName]) return;
-    Object.values(screens).forEach(s => s.classList.remove('active'));
-    screens[screenName].classList.add('active');
+    const targetScreen = screens[screenName] || screens.welcome;
+    const uniqueScreens = new Set(Object.values(screens).filter(Boolean));
+    uniqueScreens.forEach(s => s.classList.remove('active'));
+    
+    targetScreen.classList.add('active');
     document.body.dataset.screen = screenName;
 
-    // Manage live listeners — only run while we're on the success screen.
+    if (screenName === 'image') {
+        setDesignMode('image');
+    } else if (screenName === 'name' || screenName === 'text') {
+        setDesignMode('text');
+    } else if (screenName === 'create' || screenName === 'shape' || screenName === 'choose') {
+        setDesignMode(currentMode || 'text');
+    }
+
     if (screenName === 'success') {
         startLiveQueueListener();
     } else {
         stopLiveQueueListener();
     }
 
-    // The image preview needs to be positioned once its screen is laid out.
-    if (screenName === 'image') positionImageCanvas();
+    if (currentMode === 'image') positionImageCanvas();
 }
 
 window.addEventListener('popstate', (e) => {
@@ -159,9 +195,9 @@ btnHome.addEventListener('click', () => {
     showScreen('welcome');
 });
 
-// ===== WELCOME → CHOOSE SHAPE =====
+// ===== WELCOME → UNIFIED CREATE PAGE =====
 btnStart.addEventListener('click', () => {
-    showScreen('shape');
+    showScreen('create');
 });
 
 function selectShape(shapeId) {
@@ -187,6 +223,25 @@ document.querySelectorAll('.shape-card').forEach(card => {
     });
 });
 
+document.querySelectorAll('.showcase-card').forEach(card => {
+    card.addEventListener('click', () => {
+        const shapeId = card.dataset.shape;
+        if (shapeId) selectShape(shapeId);
+        showScreen('create');
+    });
+    card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left - rect.width / 2;
+        const y = e.clientY - rect.top - rect.height / 2;
+        const rotX = (-y / (rect.height / 2)) * 10;
+        const rotY = (x / (rect.width / 2)) * 10;
+        card.style.transform = `perspective(1000px) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg) translateY(-4px)`;
+    });
+    card.addEventListener('mouseleave', () => {
+        card.style.transform = '';
+    });
+});
+
 document.querySelectorAll('.shape-pill').forEach(pill => {
     pill.addEventListener('click', () => {
         selectShape(pill.dataset.shapeId);
@@ -195,21 +250,22 @@ document.querySelectorAll('.shape-pill').forEach(pill => {
 
 if (btnShapeContinue) {
     btnShapeContinue.addEventListener('click', () => {
-        showScreen('choose');
+        showScreen('create');
     });
 }
 
 // ===== CHOOSE TYPE → DESIGN =====
-typeName.addEventListener('click', () => {
-    currentMode = 'text';
-    showScreen('name');
-    nameInput.focus();
-});
+if (typeName) {
+    typeName.addEventListener('click', () => {
+        setDesignMode('text');
+    });
+}
 
-typeImage.addEventListener('click', () => {
-    currentMode = 'image';
-    showScreen('image');
-});
+if (typeImage) {
+    typeImage.addEventListener('click', () => {
+        setDesignMode('image');
+    });
+}
 
 // ===== FONT PICKER =====
 function buildFontChips() {
@@ -319,7 +375,7 @@ function updateShapePreviews() {
     }
 
     // Update Text Preview Hint
-    const textPreviewHint = document.querySelector('#screen-name .preview-hint');
+    const textPreviewHint = document.querySelector('#keychain-preview-box .preview-hint') || document.querySelector('#screen-name .preview-hint');
     if (textPreviewHint) {
         textPreviewHint.textContent = `Actual size · ${shape.dimLabelX} × ${shape.dimLabelY}`;
     }
@@ -342,7 +398,7 @@ function updateShapePreviews() {
     }
 
     // Update Image Preview Hint
-    const imgPreviewHint = document.querySelector('#screen-image .preview-hint');
+    const imgPreviewHint = document.querySelector('#img-preview-box .preview-hint') || document.querySelector('#screen-image .preview-hint');
     if (imgPreviewHint) {
         imgPreviewHint.textContent = `Engraves inside marked area · ${shape.dimLabelX} × ${shape.dimLabelY}`;
     }
