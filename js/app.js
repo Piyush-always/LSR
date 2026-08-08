@@ -155,7 +155,28 @@ function showScreenInternal(screenName) {
         stopLiveQueueListener();
     }
 
+    updateNavSteps(screenName);
+
     if (currentMode === 'image') positionImageCanvas();
+}
+
+function updateNavSteps(screenName) {
+    const stepDesign = document.getElementById('nav-step-design');
+    const stepReview = document.getElementById('nav-step-review');
+    const stepCheckout = document.getElementById('nav-step-checkout');
+    if (!stepDesign || !stepReview || !stepCheckout) return;
+
+    stepDesign.classList.remove('active');
+    stepReview.classList.remove('active');
+    stepCheckout.classList.remove('active');
+
+    if (screenName === 'payment') {
+        stepReview.classList.add('active');
+    } else if (screenName === 'success') {
+        stepCheckout.classList.add('active');
+    } else {
+        stepDesign.classList.add('active');
+    }
 }
 
 window.addEventListener('popstate', (e) => {
@@ -267,20 +288,77 @@ if (typeImage) {
     });
 }
 
+// ===== MATERIAL SWITCHER =====
+let currentMaterial = 'metal';
+function selectMaterial(materialId) {
+    currentMaterial = materialId;
+    document.querySelectorAll('.material-card').forEach(c => {
+        c.classList.toggle('selected', c.dataset.material === materialId);
+    });
+    const previewBox = document.getElementById('keychain-preview-box');
+    const imgPreviewBox = document.getElementById('img-preview-box');
+    if (previewBox) previewBox.dataset.material = materialId;
+    if (imgPreviewBox) imgPreviewBox.dataset.material = materialId;
+}
+
+document.querySelectorAll('.material-card').forEach(card => {
+    card.addEventListener('click', () => {
+        selectMaterial(card.dataset.material);
+    });
+});
+
+// ===== PREVIEW VIEW MODE SWITCHER (Product vs Technical) =====
+let currentViewMode = 'product';
+function setViewMode(mode) {
+    currentViewMode = mode;
+    const btnProduct = document.getElementById('btn-view-product');
+    const btnTechnical = document.getElementById('btn-view-technical');
+    if (btnProduct) btnProduct.classList.toggle('active', mode === 'product');
+    if (btnTechnical) btnTechnical.classList.toggle('active', mode === 'technical');
+
+    const previewBox = document.getElementById('keychain-preview-box');
+    const imgPreviewBox = document.getElementById('img-preview-box');
+    [previewBox, imgPreviewBox].forEach(box => {
+        if (box) {
+            box.classList.toggle('view-product', mode === 'product');
+            box.classList.toggle('view-technical', mode === 'technical');
+        }
+    });
+}
+
+const btnProduct = document.getElementById('btn-view-product');
+const btnTechnical = document.getElementById('btn-view-technical');
+if (btnProduct) btnProduct.addEventListener('click', () => setViewMode('product'));
+if (btnTechnical) btnTechnical.addEventListener('click', () => setViewMode('technical'));
+
 // ===== FONT PICKER =====
 function buildFontChips() {
+    if (!fontChips) return;
     fontChips.innerHTML = '';
+    const userText = (nameInput && nameInput.value.trim().toUpperCase()) || 'YOUR NAME';
+    const displayText = userText.length > 10 ? userText.slice(0, 10) + '…' : userText;
+
     Object.values(window.KEYCHAIN_FONTS).forEach(font => {
         const chip = document.createElement('button');
         chip.type = 'button';
         chip.className = 'font-chip' + (font.id === selectedFontId ? ' selected' : '');
         chip.dataset.fontId = font.id;
         chip.innerHTML = `
-            <span class="font-chip-sample" style="font-family: ${font.family};">Aa</span>
+            <span class="font-chip-text" style="font-family: ${font.family};">${displayText}</span>
             <span class="font-chip-name">${font.label}</span>
         `;
         chip.addEventListener('click', () => selectFont(font.id));
         fontChips.appendChild(chip);
+    });
+}
+
+function updateFontChipsText() {
+    if (!fontChips) return;
+    const userText = (nameInput && nameInput.value.trim().toUpperCase()) || 'YOUR NAME';
+    const displayText = userText.length > 10 ? userText.slice(0, 10) + '…' : userText;
+    fontChips.querySelectorAll('.font-chip').forEach(chip => {
+        const textEl = chip.querySelector('.font-chip-text');
+        if (textEl) textEl.textContent = displayText;
     });
 }
 
@@ -459,6 +537,7 @@ nameInput.addEventListener('input', () => {
     }
     updateCharCount();
     renderKeychainText();
+    updateFontChipsText();
     btnPay.disabled = nameInput.value.trim().length === 0;
 });
 
@@ -466,6 +545,7 @@ function resetTextState() {
     nameInput.value = '';
     btnPay.disabled = true;
     renderKeychainText();
+    updateFontChipsText();
     updateCharCount();
 }
 // ===== CAMERA FUNCTIONS =====
