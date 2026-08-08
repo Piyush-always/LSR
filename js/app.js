@@ -335,7 +335,7 @@ if (btnTechnical) btnTechnical.addEventListener('click', () => setViewMode('tech
 function buildFontChips() {
     if (!fontChips) return;
     fontChips.innerHTML = '';
-    const userText = (nameInput && nameInput.value.trim().toUpperCase()) || 'YOUR NAME';
+    const userText = (nameInput && nameInput.value.trim().toUpperCase()) || 'INVENGIC';
     const displayText = userText.length > 10 ? userText.slice(0, 10) + '…' : userText;
 
     Object.values(window.KEYCHAIN_FONTS).forEach(font => {
@@ -354,7 +354,7 @@ function buildFontChips() {
 
 function updateFontChipsText() {
     if (!fontChips) return;
-    const userText = (nameInput && nameInput.value.trim().toUpperCase()) || 'YOUR NAME';
+    const userText = (nameInput && nameInput.value.trim().toUpperCase()) || 'INVENGIC';
     const displayText = userText.length > 10 ? userText.slice(0, 10) + '…' : userText;
     fontChips.querySelectorAll('.font-chip').forEach(chip => {
         const textEl = chip.querySelector('.font-chip-text');
@@ -493,7 +493,7 @@ function renderKeychainText() {
     const textEl = document.getElementById('keychain-text');
     if (!textEl) return;
     const raw = nameInput.value.trim();
-    const display = raw.replace(/[a-z]/g, c => c.toUpperCase()) || 'YOUR NAME';
+    const display = raw.replace(/[a-z]/g, c => c.toUpperCase()) || 'INVENGIC';
     const font = window.KEYCHAIN_FONTS[selectedFontId] || window.KEYCHAIN_FONTS.pixel;
     const shape = window.getShape(selectedShapeId);
 
