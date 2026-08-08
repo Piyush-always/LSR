@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,9 +8,12 @@
     <link rel="stylesheet" href="css/style.css?v=10">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700;800;900&family=Montserrat:wght@700&family=Noto+Emoji&family=Pacifico&family=Permanent+Marker&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700;800;900&family=Montserrat:wght@700&family=Noto+Emoji&family=Pacifico&family=Permanent+Marker&family=Press+Start+2P&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 </head>
+
 <body data-screen="welcome">
 
     <!-- App Header Navigation -->
@@ -37,8 +41,10 @@
         </div>
 
         <button class="home-btn" id="home-btn" aria-label="Home" title="Back to Home">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12l9-9 9 9" />
+                <path d="M5 10v10h14V10" />
             </svg>
             <span>Home</span>
         </button>
@@ -55,16 +61,20 @@
 
             <div class="hero-preview-stage" id="hero-preview-stage">
                 <svg viewBox="-7 -7 86 49" class="hero-preview-svg">
-                    <rect x="2" y="2" width="68" height="31" rx="4" fill="#f4f4f6" stroke="#18181b" stroke-width="0.4"/>
-                    <circle cx="7" cy="17.5" r="2.5" fill="none" stroke="#18181b" stroke-width="0.4"/>
-                    <text x="42" y="17.5" font-family="'Press Start 2P', monospace" font-size="3.8" text-anchor="middle" dominant-baseline="central" fill="none" stroke="#09090b" stroke-width="0.2">AAYUSH ⚡</text>
+                    <rect x="2" y="2" width="68" height="31" rx="4" fill="#f4f4f6" stroke="#18181b"
+                        stroke-width="0.4" />
+                    <circle cx="7" cy="17.5" r="2.5" fill="none" stroke="#18181b" stroke-width="0.4" />
+                    <text x="42" y="17.5" font-family="'Press Start 2P', monospace" font-size="3.8" text-anchor="middle"
+                        dominant-baseline="central" fill="none" stroke="#09090b" stroke-width="0.2">INVENGIC ⚡</text>
                 </svg>
             </div>
 
             <button class="btn btn-primary" id="btn-start">
                 Start creating
-                <svg class="btn-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/>
+                <svg class="btn-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                    stroke-width="2">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12,5 19,12 12,19" />
                 </svg>
             </button>
         </div>
@@ -74,31 +84,40 @@
     <section id="screen-create" class="screen">
         <div class="container create-container">
             <div class="configurator-grid">
-                
+
                 <!-- Left Column: Live Product Preview -->
                 <div class="preview-column">
                     <div class="preview-box view-product" id="keychain-preview-box" data-material="metal">
                         <div class="preview-top-bar">
                             <span class="preview-badge">PREVIEW</span>
                             <div class="preview-mode-switcher">
-                                <button type="button" class="preview-mode-btn active" id="btn-view-product" data-view="product">Product</button>
-                                <button type="button" class="preview-mode-btn" id="btn-view-technical" data-view="technical">Technical</button>
+                                <button type="button" class="preview-mode-btn active" id="btn-view-product"
+                                    data-view="product">Product</button>
+                                <button type="button" class="preview-mode-btn" id="btn-view-technical"
+                                    data-view="technical">Technical</button>
                             </div>
                         </div>
 
                         <div class="keychain-preview" id="keychain-preview">
                             <svg viewBox="-7 -7 86 49" class="keychain-svg" id="keychain-svg">
-                                <line x1="0"  y1="-3" x2="72" y2="-3" stroke="#bbb" stroke-width="0.18"/>
-                                <line x1="0"  y1="-2" x2="0"  y2="-4" stroke="#bbb" stroke-width="0.18"/>
-                                <line x1="72" y1="-2" x2="72" y2="-4" stroke="#bbb" stroke-width="0.18"/>
-                                <text x="36" y="-4.5" font-size="2.6" text-anchor="middle" fill="#888" font-family="Inter, sans-serif" font-weight="600">72 mm</text>
-                                <line x1="-3" y1="0"  x2="-3" y2="35" stroke="#bbb" stroke-width="0.18"/>
-                                <line x1="-2" y1="0"  x2="-4" y2="0"  stroke="#bbb" stroke-width="0.18"/>
-                                <line x1="-2" y1="35" x2="-4" y2="35" stroke="#bbb" stroke-width="0.18"/>
-                                <text x="-4.5" y="17.5" font-size="2.6" text-anchor="middle" fill="#888" font-family="Inter, sans-serif" font-weight="600" transform="rotate(-90, -4.5, 17.5)">35 mm</text>
-                                <rect x="2" y="2" width="68" height="31" rx="4" ry="4" fill="none" stroke="#09090b" stroke-width="0.4"/>
-                                <circle cx="7" cy="17.5" r="2.5" fill="none" stroke="#09090b" stroke-width="0.4"/>
-                                <text id="keychain-text" x="42" y="17.5" font-family="'Press Start 2P', 'Noto Emoji', monospace" font-size="4" text-anchor="middle" dominant-baseline="central" fill="none" stroke="#09090b" stroke-width="0.18" paint-order="stroke">YOUR NAME</text>
+                                <line x1="0" y1="-3" x2="72" y2="-3" stroke="#bbb" stroke-width="0.18" />
+                                <line x1="0" y1="-2" x2="0" y2="-4" stroke="#bbb" stroke-width="0.18" />
+                                <line x1="72" y1="-2" x2="72" y2="-4" stroke="#bbb" stroke-width="0.18" />
+                                <text x="36" y="-4.5" font-size="2.6" text-anchor="middle" fill="#888"
+                                    font-family="Inter, sans-serif" font-weight="600">72 mm</text>
+                                <line x1="-3" y1="0" x2="-3" y2="35" stroke="#bbb" stroke-width="0.18" />
+                                <line x1="-2" y1="0" x2="-4" y2="0" stroke="#bbb" stroke-width="0.18" />
+                                <line x1="-2" y1="35" x2="-4" y2="35" stroke="#bbb" stroke-width="0.18" />
+                                <text x="-4.5" y="17.5" font-size="2.6" text-anchor="middle" fill="#888"
+                                    font-family="Inter, sans-serif" font-weight="600"
+                                    transform="rotate(-90, -4.5, 17.5)">35 mm</text>
+                                <rect x="2" y="2" width="68" height="31" rx="4" ry="4" fill="none" stroke="#09090b"
+                                    stroke-width="0.4" />
+                                <circle cx="7" cy="17.5" r="2.5" fill="none" stroke="#09090b" stroke-width="0.4" />
+                                <text id="keychain-text" x="42" y="17.5"
+                                    font-family="'Press Start 2P', 'Noto Emoji', monospace" font-size="4"
+                                    text-anchor="middle" dominant-baseline="central" fill="none" stroke="#09090b"
+                                    stroke-width="0.18" paint-order="stroke">YOUR NAME</text>
                             </svg>
                         </div>
                         <p class="preview-hint">Actual size · 72 × 35 mm</p>
@@ -112,12 +131,16 @@
                         <div class="img-keychain" id="img-keychain">
                             <canvas class="img-canvas" id="img-canvas" width="10" height="10"></canvas>
                             <svg class="img-overlay" viewBox="0 0 72 35" preserveAspectRatio="none">
-                                <rect x="2" y="2" width="68" height="31" rx="4" ry="4" fill="none" stroke="#09090b" stroke-width="0.4"/>
-                                <circle cx="7" cy="17.5" r="2.5" fill="none" stroke="#09090b" stroke-width="0.4"/>
+                                <rect x="2" y="2" width="68" height="31" rx="4" ry="4" fill="none" stroke="#09090b"
+                                    stroke-width="0.4" />
+                                <circle cx="7" cy="17.5" r="2.5" fill="none" stroke="#09090b" stroke-width="0.4" />
                             </svg>
                             <button type="button" class="img-dropzone" id="img-dropzone">
-                                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="17 8 12 3 7 8" />
+                                    <line x1="12" y1="3" x2="12" y2="15" />
                                 </svg>
                                 <span class="img-dropzone-title">Upload image or logo</span>
                                 <span class="img-dropzone-hint">PNG, JPG, WEBP</span>
@@ -129,7 +152,7 @@
 
                 <!-- Right Column: Customization Controls Stack -->
                 <div class="controls-column">
-                    
+
                     <!-- 1. Shape Selection -->
                     <div class="create-section">
                         <label class="create-section-label">SHAPE</label>
@@ -137,8 +160,9 @@
                             <button type="button" class="shape-card selected" data-shape-id="rectangle">
                                 <span class="shape-card-icon">
                                     <svg viewBox="0 0 72 35" width="40" height="22">
-                                        <rect x="2" y="2" width="68" height="31" rx="4" fill="none" stroke="currentColor" stroke-width="2.5"/>
-                                        <circle cx="8" cy="17.5" r="2.8" fill="currentColor"/>
+                                        <rect x="2" y="2" width="68" height="31" rx="4" fill="none"
+                                            stroke="currentColor" stroke-width="2.5" />
+                                        <circle cx="8" cy="17.5" r="2.8" fill="currentColor" />
                                     </svg>
                                 </span>
                                 <span class="shape-card-title">Rectangle</span>
@@ -148,8 +172,9 @@
                             <button type="button" class="shape-card" data-shape-id="circle">
                                 <span class="shape-card-icon">
                                     <svg viewBox="0 0 50 50" width="30" height="30">
-                                        <circle cx="25" cy="25" r="22" fill="none" stroke="currentColor" stroke-width="2.5"/>
-                                        <circle cx="25" cy="7" r="2.8" fill="currentColor"/>
+                                        <circle cx="25" cy="25" r="22" fill="none" stroke="currentColor"
+                                            stroke-width="2.5" />
+                                        <circle cx="25" cy="7" r="2.8" fill="currentColor" />
                                     </svg>
                                 </span>
                                 <span class="shape-card-title">Circle</span>
@@ -159,8 +184,10 @@
                             <button type="button" class="shape-card" data-shape-id="heart">
                                 <span class="shape-card-icon">
                                     <svg viewBox="0 0 55 50" width="32" height="30">
-                                        <path d="M 27.5 46 C 14 36 2 26 2 15 C 2 7 8 2 16 2 C 21.5 2 25.5 5.5 27.5 9.5 C 29.5 5.5 33.5 2 39 2 C 47 2 53 7 53 15 C 53 26 41 36 27.5 46 Z" fill="none" stroke="currentColor" stroke-width="2.5"/>
-                                        <circle cx="27.5" cy="7" r="2.8" fill="currentColor"/>
+                                        <path
+                                            d="M 27.5 46 C 14 36 2 26 2 15 C 2 7 8 2 16 2 C 21.5 2 25.5 5.5 27.5 9.5 C 29.5 5.5 33.5 2 39 2 C 47 2 53 7 53 15 C 53 26 41 36 27.5 46 Z"
+                                            fill="none" stroke="currentColor" stroke-width="2.5" />
+                                        <circle cx="27.5" cy="7" r="2.8" fill="currentColor" />
                                     </svg>
                                 </span>
                                 <span class="shape-card-title">Heart</span>
@@ -193,15 +220,19 @@
                         <label class="create-section-label">DESIGN</label>
                         <div class="mode-segmented-control">
                             <button type="button" class="mode-tab active" id="type-name" data-mode="text">
-                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M4 7V4h16v3M9 20h6M12 4v16"/>
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                                    stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M4 7V4h16v3M9 20h6M12 4v16" />
                                 </svg>
                                 <span>Text &amp; Emoji</span>
                             </button>
 
                             <button type="button" class="mode-tab" id="type-image" data-mode="image">
-                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                                    stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                                    <circle cx="8.5" cy="8.5" r="1.5" />
+                                    <polyline points="21 15 16 10 5 21" />
                                 </svg>
                                 <span>Upload Image</span>
                             </button>
@@ -212,7 +243,8 @@
                     <div id="mode-panel-text" class="mode-panel">
                         <div class="input-group">
                             <label for="name-input">TEXT</label>
-                            <input type="text" id="name-input" placeholder="Your name or message ⚡" autocomplete="off" spellcheck="false" inputmode="text">
+                            <input type="text" id="name-input" placeholder="Your name or message ⚡" autocomplete="off"
+                                spellcheck="false" inputmode="text">
                             <span class="char-count"><span id="char-current">0</span>/20</span>
                         </div>
 
@@ -242,8 +274,10 @@
 
                         <button class="btn btn-primary" id="btn-pay" disabled>
                             Proceed to Pay
-                            <svg class="btn-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                                <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/>
+                            <svg class="btn-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none"
+                                stroke="currentColor" stroke-width="2">
+                                <line x1="5" y1="12" x2="19" y2="12" />
+                                <polyline points="12,5 19,12 12,19" />
                             </svg>
                         </button>
                     </div>
@@ -261,7 +295,8 @@
                             <video id="camera-video" autoplay playsinline muted></video>
                             <div class="camera-buttons">
                                 <button type="button" class="btn btn-primary" id="camera-capture">Capture</button>
-                                <button type="button" class="btn btn-secondary" id="camera-retake" hidden>Retake</button>
+                                <button type="button" class="btn btn-secondary" id="camera-retake"
+                                    hidden>Retake</button>
                                 <button type="button" class="btn btn-secondary" id="camera-cancel">Cancel</button>
                             </div>
                         </div>
@@ -294,8 +329,10 @@
 
                         <button class="btn btn-primary" id="btn-pay-image" disabled>
                             Proceed to Pay
-                            <svg class="btn-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                                <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/>
+                            <svg class="btn-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none"
+                                stroke="currentColor" stroke-width="2">
+                                <line x1="5" y1="12" x2="19" y2="12" />
+                                <polyline points="12,5 19,12 12,19" />
                             </svg>
                         </button>
                     </div>
@@ -315,10 +352,12 @@
             <p class="payment-sub" id="payment-sub">Complete payment in the Razorpay window.</p>
 
             <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 12px; align-items: center;">
-                <button type="button" class="btn btn-secondary" id="btn-reopen-modal" style="width: 100%; max-width: 320px;">
+                <button type="button" class="btn btn-secondary" id="btn-reopen-modal"
+                    style="width: 100%; max-width: 320px;">
                     🔄 Generate Fresh QR Code
                 </button>
-                <button type="button" class="btn btn-primary" id="btn-open-direct-link" style="width: 100%; max-width: 320px;">
+                <button type="button" class="btn btn-primary" id="btn-open-direct-link"
+                    style="width: 100%; max-width: 320px;">
                     ⚡ Pay via Direct Page (GPay / PhonePe / QR)
                 </button>
             </div>
@@ -330,8 +369,8 @@
         <div class="container">
             <div class="success-icon">
                 <svg viewBox="0 0 80 80" class="checkmark-svg">
-                    <circle cx="40" cy="40" r="36" class="checkmark-circle"/>
-                    <polyline points="24,42 36,54 56,30" class="checkmark-tick"/>
+                    <circle cx="40" cy="40" r="36" class="checkmark-circle" />
+                    <polyline points="24,42 36,54 56,30" class="checkmark-tick" />
                 </svg>
             </div>
             <h2 class="section-title success-title">Order Confirmed</h2>
@@ -377,17 +416,20 @@
                 </div>
             </div>
 
-            <p class="success-sub">Keychain <span id="success-for">for <strong id="success-name"></strong></span> is in line.</p>
+            <p class="success-sub">Keychain <span id="success-for">for <strong id="success-name"></strong></span> is in
+                line.</p>
 
             <div class="live-queue" id="live-queue" hidden>
                 <div class="live-queue-row">
                     <span class="live-dot"></span>
-                    <span class="live-queue-text" id="live-queue-text">Now printing: <strong id="now-printing">—</strong></span>
+                    <span class="live-queue-text" id="live-queue-text">Now printing: <strong
+                            id="now-printing">—</strong></span>
                 </div>
                 <p class="live-queue-sub" id="live-queue-sub">Checking queue status…</p>
             </div>
 
-            <button type="button" class="btn-notify" id="btn-notify" style="margin-top: 16px; padding: 10px 18px; border: 1px solid var(--border); border-radius: 100px; background: #fff; cursor: pointer;">
+            <button type="button" class="btn-notify" id="btn-notify"
+                style="margin-top: 16px; padding: 10px 18px; border: 1px solid var(--border); border-radius: 100px; background: #fff; cursor: pointer;">
                 <span>Notify me when ready</span>
             </button>
 
@@ -436,4 +478,5 @@
     <script src="js/app.js?v=16"></script>
     <script src="js/debug-panel.js?v=16"></script>
 </body>
+
 </html>
