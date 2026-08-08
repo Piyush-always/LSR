@@ -591,36 +591,44 @@ function stopCamera() {
 }
 
 async function openCropEditor(file) {
-
     if (cropper) {
         cropper.destroy();
         cropper = null;
     }
 
-    cropImage.src = URL.createObjectURL(file);
-
     cropModal.hidden = false;
 
-    cropImage.onload = () => {
+    const initCropper = () => {
+        if (cropper) {
+            cropper.destroy();
+            cropper = null;
+        }
         const shape = window.getShape(selectedShapeId);
         const aspect = shape ? (shape.width / shape.height) : (72 / 35);
-
-        cropper = new Cropper(cropImage, {
-            aspectRatio: aspect,
-            viewMode: 0,
-            autoCropArea: 0.9,
-            dragMode: "crop",
-            cropBoxResizable: true,
-            cropBoxMovable: true,
-            movable: true,
-            zoomable: true,
-            rotatable: true,
-            guides: true,
-            center: true,
-            highlight: true,
-            background: false
-        });
+        if (typeof Cropper !== 'undefined') {
+            cropper = new Cropper(cropImage, {
+                aspectRatio: aspect,
+                viewMode: 0,
+                autoCropArea: 0.9,
+                dragMode: "crop",
+                cropBoxResizable: true,
+                cropBoxMovable: true,
+                movable: true,
+                zoomable: true,
+                rotatable: true,
+                guides: true,
+                center: true,
+                highlight: true,
+                background: false
+            });
+        }
     };
+
+    cropImage.onload = initCropper;
+    cropImage.src = URL.createObjectURL(file);
+    if (cropImage.complete) {
+        initCropper();
+    }
 }
 
 rotateLeft.addEventListener('click', () => {
