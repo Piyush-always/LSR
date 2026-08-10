@@ -237,31 +237,53 @@ function resetShapeState() {
     selectShape(window.DEFAULT_SHAPE_ID || 'rectangle');
 }
 
-// ===== SHAPE SELECTION =====
+// ===== WELCOME HERO INTERACTION & PARALLAX =====
+const heroSamples = document.querySelectorAll('.hero-sample-item');
+heroSamples.forEach(sample => {
+    const handleSampleSelect = () => {
+        const shapeId = sample.dataset.shape;
+        if (shapeId) {
+            selectShape(shapeId);
+        }
+        showScreen('create');
+    };
+
+    sample.addEventListener('click', handleSampleSelect);
+    sample.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleSampleSelect();
+        }
+    });
+});
+
+const heroCanvas = document.getElementById('hero-canvas');
+if (heroCanvas && window.matchMedia('(min-width: 900px)').matches) {
+    heroCanvas.addEventListener('mousemove', (e) => {
+        const rect = heroCanvas.getBoundingClientRect();
+        const offsetX = (e.clientX - rect.left - rect.width / 2) * 0.02;
+        const offsetY = (e.clientY - rect.top - rect.height / 2) * 0.02;
+
+        heroSamples.forEach((sample, i) => {
+            const factor = (i % 2 === 0 ? 1 : -1) * (0.6 + (i * 0.2));
+            sample.style.transform = `translate3d(${(offsetX * factor).toFixed(1)}px, ${(offsetY * factor).toFixed(1)}px, 0)`;
+        });
+    });
+
+    heroCanvas.addEventListener('mouseleave', () => {
+        heroSamples.forEach(sample => {
+            sample.style.transform = '';
+        });
+    });
+}
+
 document.querySelectorAll('.shape-card').forEach(card => {
     card.addEventListener('click', () => {
         selectShape(card.dataset.shapeId);
     });
 });
 
-document.querySelectorAll('.showcase-card').forEach(card => {
-    card.addEventListener('click', () => {
-        const shapeId = card.dataset.shape;
-        if (shapeId) selectShape(shapeId);
-        showScreen('create');
-    });
-    card.addEventListener('mousemove', (e) => {
-        const rect = card.getBoundingClientRect();
-        const x = e.clientX - rect.left - rect.width / 2;
-        const y = e.clientY - rect.top - rect.height / 2;
-        const rotX = (-y / (rect.height / 2)) * 10;
-        const rotY = (x / (rect.width / 2)) * 10;
-        card.style.transform = `perspective(1000px) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg) translateY(-4px)`;
-    });
-    card.addEventListener('mouseleave', () => {
-        card.style.transform = '';
-    });
-});
+
 
 document.querySelectorAll('.shape-pill').forEach(pill => {
     pill.addEventListener('click', () => {
