@@ -261,18 +261,20 @@ const heroCanvas = document.getElementById('hero-canvas');
 if (heroCanvas && window.matchMedia('(min-width: 900px)').matches) {
     heroCanvas.addEventListener('mousemove', (e) => {
         const rect = heroCanvas.getBoundingClientRect();
-        const offsetX = (e.clientX - rect.left - rect.width / 2) * 0.02;
-        const offsetY = (e.clientY - rect.top - rect.height / 2) * 0.02;
+        const offsetX = (e.clientX - rect.left - rect.width / 2) * 0.015;
+        const offsetY = (e.clientY - rect.top - rect.height / 2) * 0.015;
 
         heroSamples.forEach((sample, i) => {
-            const factor = (i % 2 === 0 ? 1 : -1) * (0.6 + (i * 0.2));
-            sample.style.transform = `translate3d(${(offsetX * factor).toFixed(1)}px, ${(offsetY * factor).toFixed(1)}px, 0)`;
+            const factor = (i % 2 === 0 ? 1 : -1) * (0.5 + (i * 0.15));
+            sample.style.setProperty('--px', `${(offsetX * factor).toFixed(1)}px`);
+            sample.style.setProperty('--py', `${(offsetY * factor).toFixed(1)}px`);
         });
     });
 
     heroCanvas.addEventListener('mouseleave', () => {
         heroSamples.forEach(sample => {
-            sample.style.transform = '';
+            sample.style.removeProperty('--px');
+            sample.style.removeProperty('--py');
         });
     });
 }
