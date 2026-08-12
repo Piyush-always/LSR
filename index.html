@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Custom Laser Keychain</title>
-    <link rel="stylesheet" href="css/style.css?v=5">
+    <link rel="stylesheet" href="css/style.css?v=8">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700;800;900&family=Montserrat:wght@700&family=Noto+Emoji&family=Pacifico&family=Permanent+Marker&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 </head>
 <body>
 
@@ -52,14 +53,15 @@
         </div>
     </div>
 
-    <!-- Screen 1: Welcome -->
+    <!-- Screen 1: Welcome (Home Page with Floating 3D Showcase Keychains) -->
     <section id="screen-welcome" class="screen active">
-        <div class="container">
+        <div class="container welcome-container">
             <p class="welcome-label">LASER ENGRAVED</p>
             <h1 class="welcome-title">
                 Make It<br>Yours in<br>Minutes
             </h1>
             <p class="welcome-sub">Custom keychains — your name, or your own logo. Designed here, engraved on the spot.</p>
+
             <button class="btn btn-primary" id="btn-start">
                 Get Started
                 <svg class="btn-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
@@ -69,172 +71,205 @@
         </div>
     </section>
 
-    <!-- Screen 2: Choose type -->
-    <section id="screen-choose" class="screen">
-        <div class="container">
-            <h2 class="section-title">What would you like?</h2>
-            <p class="choose-sub">Pick a style to start designing.</p>
+    <!-- Unified Create Page (Shape Selection + Design Type Switcher + Live Preview & Controls) -->
+    <section id="screen-create" class="screen">
+        <div class="container create-container">
+            
+            <!-- 1. Choose Shape (3 Horizontal Grid Cards) -->
+            <div class="create-section">
+                <label class="create-section-label">CHOOSE SHAPE</label>
+                <div class="shape-grid" id="shape-grid">
+                    <button type="button" class="shape-card selected" data-shape-id="rectangle">
+                        <span class="shape-card-icon">
+                            <svg viewBox="0 0 72 35" width="46" height="23">
+                                <rect x="2" y="2" width="68" height="31" rx="4" fill="none" stroke="currentColor" stroke-width="2.5"/>
+                                <circle cx="8" cy="17.5" r="2.8" fill="currentColor"/>
+                            </svg>
+                        </span>
+                        <span class="shape-card-title">Rectangle</span>
+                        <span class="shape-card-desc">72 × 35 mm</span>
+                    </button>
 
-            <div class="choose-grid">
-                <button type="button" class="type-card" id="type-name">
-                    <span class="type-card-icon" aria-hidden="true">
-                        <svg viewBox="0 0 48 48" width="46" height="46" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M10 34V16M10 16l7 12 7-12M10 16h14"/><path d="M30 20v14M38 20v14M30 27h8"/>
-                        </svg>
-                    </span>
-                    <span class="type-card-title">Name Keychain</span>
-                    <span class="type-card-desc">Your name + emoji in a font you pick.</span>
-                    <span class="type-card-go">Design →</span>
-                </button>
+                    <button type="button" class="shape-card" data-shape-id="circle">
+                        <span class="shape-card-icon">
+                            <svg viewBox="0 0 50 50" width="34" height="34">
+                                <circle cx="25" cy="25" r="22" fill="none" stroke="currentColor" stroke-width="2.5"/>
+                                <circle cx="25" cy="7" r="2.8" fill="currentColor"/>
+                            </svg>
+                        </span>
+                        <span class="shape-card-title">Circle</span>
+                        <span class="shape-card-desc">50 × 50 mm</span>
+                    </button>
 
-                <button type="button" class="type-card" id="type-image">
-                    <span class="type-card-icon" aria-hidden="true">
-                        <svg viewBox="0 0 48 48" width="46" height="46" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="7" y="10" width="34" height="28" rx="3"/><circle cx="17" cy="20" r="3.2"/><path d="M9 33l9-9 7 6 6-5 8 8"/>
-                        </svg>
-                    </span>
-                    <span class="type-card-title">Image Keychain</span>
-                    <span class="type-card-desc">Upload a logo or line-art image to engrave.</span>
-                    <span class="type-card-go">Upload →</span>
-                </button>
-            </div>
-        </div>
-    </section>
-
-    <!-- Screen 3a: Name design -->
-    <section id="screen-name" class="screen">
-        <div class="container">
-            <h2 class="section-title">Design Your Keychain</h2>
-
-            <div class="preview-box">
-                <div class="keychain-preview" id="keychain-preview">
-                    <svg viewBox="-7 -7 86 49" class="keychain-svg" id="keychain-svg">
-                        <line x1="0"  y1="-3" x2="72" y2="-3" stroke="#bbb" stroke-width="0.18"/>
-                        <line x1="0"  y1="-2" x2="0"  y2="-4" stroke="#bbb" stroke-width="0.18"/>
-                        <line x1="72" y1="-2" x2="72" y2="-4" stroke="#bbb" stroke-width="0.18"/>
-                        <text x="36" y="-4.5" font-size="2.6" text-anchor="middle"
-                              fill="#888" font-family="Inter, sans-serif" font-weight="600">72 mm</text>
-                        <line x1="-3" y1="0"  x2="-3" y2="35" stroke="#bbb" stroke-width="0.18"/>
-                        <line x1="-2" y1="0"  x2="-4" y2="0"  stroke="#bbb" stroke-width="0.18"/>
-                        <line x1="-2" y1="35" x2="-4" y2="35" stroke="#bbb" stroke-width="0.18"/>
-                        <text x="-4.5" y="17.5" font-size="2.6" text-anchor="middle"
-                              fill="#888" font-family="Inter, sans-serif" font-weight="600"
-                              transform="rotate(-90, -4.5, 17.5)">35 mm</text>
-                        <rect x="2" y="2" width="68" height="31" rx="4" ry="4"
-                              fill="none" stroke="#0a0a0a" stroke-width="0.4"/>
-                        <circle cx="7" cy="17.5" r="2.5" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>
-                        <text id="keychain-text"
-                              x="42" y="17.5"
-                              font-family="'Press Start 2P', 'Noto Emoji', monospace"
-                              font-size="4"
-                              text-anchor="middle"
-                              dominant-baseline="central"
-                              fill="none" stroke="#0a0a0a" stroke-width="0.18"
-                              paint-order="stroke">YOUR NAME</text>
-                    </svg>
-                </div>
-                <p class="preview-hint">Actual size · 72 × 35 mm</p>
-            </div>
-
-            <div class="input-group">
-                <label for="name-input">Enter your name</label>
-                <input
-                    type="text"
-                    id="name-input"
-                    placeholder="Name + emoji 🎮"
-                    autocomplete="off"
-                    spellcheck="false"
-                    inputmode="text"
-                >
-                <span class="char-count"><span id="char-current">0</span>/20</span>
-            </div>
-
-            <div class="emoji-section">
-                <button type="button" class="emoji-toggle" id="emoji-toggle" aria-expanded="false">
-                    <span class="emoji-toggle-icon">🎮</span>
-                    <span class="emoji-toggle-label">Add an emoji</span>
-                    <svg class="emoji-toggle-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="6 9 12 15 18 9"/>
-                    </svg>
-                </button>
-                <div class="emoji-panel" id="emoji-panel" hidden></div>
-            </div>
-
-            <div class="font-picker">
-                <label class="font-picker-label">Font Style</label>
-                <div class="font-chips" id="font-chips"></div>
-            </div>
-
-            <div class="price-tag">
-                <span class="price-label">Price</span>
-                <span class="price-amount">&#8377;1</span>
-            </div>
-
-            <button class="btn btn-primary" id="btn-pay" disabled>
-                Proceed to Pay
-                <svg class="btn-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/>
-                </svg>
-            </button>
-        </div>
-    </section>
-
-    <!-- Screen 3b: Image design -->
-    <section id="screen-image" class="screen">
-        <div class="container">
-            <h2 class="section-title">Upload Your Image</h2>
-
-            <div class="preview-box">
-                <div class="img-keychain" id="img-keychain">
-                    <!-- Processed B&W bitmap, positioned in the engrave area by app.js -->
-                    <canvas class="img-canvas" id="img-canvas" width="10" height="10"></canvas>
-                    <!-- Keychain outline overlay (border + hole), on top -->
-                    <svg class="img-overlay" viewBox="0 0 72 35" preserveAspectRatio="none">
-                        <rect x="2" y="2" width="68" height="31" rx="4" ry="4"
-                              fill="none" stroke="#0a0a0a" stroke-width="0.4"/>
-                        <circle cx="7" cy="17.5" r="2.5" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>
-                    </svg>
-                    <!-- Empty state / dropzone -->
-                    <button type="button" class="img-dropzone" id="img-dropzone">
-                        <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-                        </svg>
-                        <span class="img-dropzone-title">Tap to upload</span>
-                        <span class="img-dropzone-hint">PNG, JPG or WEBP · logos &amp; line art work best</span>
+                    <button type="button" class="shape-card" data-shape-id="heart">
+                        <span class="shape-card-icon">
+                            <svg viewBox="0 0 55 50" width="36" height="34">
+                                <path d="M 27.5 46 C 14 36 2 26 2 15 C 2 7 8 2 16 2 C 21.5 2 25.5 5.5 27.5 9.5 C 29.5 5.5 33.5 2 39 2 C 47 2 53 7 53 15 C 53 26 41 36 27.5 46 Z" fill="none" stroke="currentColor" stroke-width="2.5"/>
+                                <circle cx="27.5" cy="7" r="2.8" fill="currentColor"/>
+                            </svg>
+                        </span>
+                        <span class="shape-card-title">Heart</span>
+                        <span class="shape-card-desc">55 × 50 mm</span>
                     </button>
                 </div>
-                <p class="preview-hint">Engraves inside the marked area · 72 × 35 mm</p>
             </div>
 
-            <input type="file" id="img-file" accept="image/png,image/jpeg,image/webp" hidden>
+            <!-- 2. Choose Design Type (Segmented Control: Text vs Image) -->
+            <div class="create-section">
+                <label class="create-section-label">DESIGN TYPE</label>
+                <div class="mode-segmented-control">
+                    <button type="button" class="mode-tab active" id="type-name" data-mode="text">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 7V4h16v3M9 20h6M12 4v16"/>
+                        </svg>
+                        <span>Text &amp; Emoji</span>
+                    </button>
 
-            <p class="img-error" id="img-error" hidden></p>
-
-            <!-- Adjustment controls (shown after an image loads) -->
-            <div class="img-controls" id="img-controls" hidden>
-                <div class="control-row">
-                    <label for="img-threshold">Threshold</label>
-                    <input type="range" id="img-threshold" min="1" max="254" value="128">
+                    <button type="button" class="mode-tab" id="type-image" data-mode="image">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                        </svg>
+                        <span>Upload Image</span>
+                    </button>
                 </div>
-                <div class="control-row control-row-inline">
-                    <label for="img-invert">Invert (light art on dark background)</label>
-                    <input type="checkbox" id="img-invert">
+            </div>
+
+            <!-- 3. Live Preview Box -->
+            <div class="preview-box">
+                <div id="keychain-preview-box" class="preview-stage-inner">
+                    <div class="keychain-preview" id="keychain-preview">
+                        <svg viewBox="-7 -7 86 49" class="keychain-svg" id="keychain-svg">
+                            <line x1="0"  y1="-3" x2="72" y2="-3" stroke="#bbb" stroke-width="0.18"/>
+                            <line x1="0"  y1="-2" x2="0"  y2="-4" stroke="#bbb" stroke-width="0.18"/>
+                            <line x1="72" y1="-2" x2="72" y2="-4" stroke="#bbb" stroke-width="0.18"/>
+                            <text x="36" y="-4.5" font-size="2.6" text-anchor="middle" fill="#888" font-family="Inter, sans-serif" font-weight="600">72 mm</text>
+                            <line x1="-3" y1="0"  x2="-3" y2="35" stroke="#bbb" stroke-width="0.18"/>
+                            <line x1="-2" y1="0"  x2="-4" y2="0"  stroke="#bbb" stroke-width="0.18"/>
+                            <line x1="-2" y1="35" x2="-4" y2="35" stroke="#bbb" stroke-width="0.18"/>
+                            <text x="-4.5" y="17.5" font-size="2.6" text-anchor="middle" fill="#888" font-family="Inter, sans-serif" font-weight="600" transform="rotate(-90, -4.5, 17.5)">35 mm</text>
+                            <rect x="2" y="2" width="68" height="31" rx="4" ry="4" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>
+                            <circle cx="7" cy="17.5" r="2.5" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>
+                            <text id="keychain-text" x="42" y="17.5" font-family="'Press Start 2P', 'Noto Emoji', monospace" font-size="4" text-anchor="middle" dominant-baseline="central" fill="none" stroke="#0a0a0a" stroke-width="0.18" paint-order="stroke">YOUR NAME</text>
+                        </svg>
+                    </div>
+                    <p class="preview-hint">Actual size · 72 × 35 mm</p>
                 </div>
-                <button type="button" class="btn-secondary" id="img-replace">Choose a different image</button>
-                <p class="img-coverage" id="img-coverage" hidden></p>
+
+                <div id="img-preview-box" class="preview-stage-inner" hidden>
+                    <div class="img-keychain" id="img-keychain">
+                        <canvas class="img-canvas" id="img-canvas" width="10" height="10"></canvas>
+                        <svg class="img-overlay" viewBox="0 0 72 35" preserveAspectRatio="none">
+                            <rect x="2" y="2" width="68" height="31" rx="4" ry="4" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>
+                            <circle cx="7" cy="17.5" r="2.5" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>
+                        </svg>
+                        <button type="button" class="img-dropzone" id="img-dropzone">
+                            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <span class="img-dropzone-title">Tap to upload image/logo</span>
+                            <span class="img-dropzone-hint">PNG, JPG or WEBP · Logos &amp; line art work best</span>
+                        </button>
+                    </div>
+                    <p class="preview-hint">Engraves inside marked area · 72 × 35 mm</p>
+                </div>
             </div>
 
-            <div class="price-tag">
-                <span class="price-label">Price</span>
-                <span class="price-amount">&#8377;1</span>
+            <!-- 4. Contextual Customization Controls -->
+            <div id="mode-panel-text" class="mode-panel">
+                <div class="input-group">
+                    <label for="name-input">Enter your name</label>
+                    <input type="text" id="name-input" placeholder="Name + emoji 🎮" autocomplete="off" spellcheck="false" inputmode="text">
+                    <span class="char-count"><span id="char-current">0</span>/20</span>
+                </div>
+
+                <div class="emoji-section">
+                    <button type="button" class="emoji-toggle" id="emoji-toggle" aria-expanded="false">
+                        <span class="emoji-toggle-icon">🎮</span>
+                        <span class="emoji-toggle-label">Add an emoji</span>
+                        <svg class="emoji-toggle-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                    </button>
+                    <div class="emoji-panel" id="emoji-panel" hidden></div>
+                </div>
+
+                <div class="font-picker">
+                    <label class="font-picker-label">Font Style</label>
+                    <div class="font-chips" id="font-chips"></div>
+                </div>
+
+                <div class="price-tag">
+                    <div class="price-left">
+                        <span class="price-label">Laser Engraving</span>
+                        <span class="price-subtitle">Per Keychain</span>
+                    </div>
+                    <div class="price-right">
+                        <span class="price-currency">₹</span>
+                        <span class="price-amount">1</span>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" id="btn-pay" disabled>
+                    Proceed to Pay
+                    <svg class="btn-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/>
+                    </svg>
+                </button>
             </div>
 
-            <button class="btn btn-primary" id="btn-pay-image" disabled>
-                Proceed to Pay
-                <svg class="btn-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/>
-                </svg>
-            </button>
+            <div id="mode-panel-image" class="mode-panel" hidden>
+                <input type="file" id="img-file" accept="image/png,image/jpeg,image/webp" hidden>
+
+                <div class="image-action-row">
+                    <button type="button" class="btn btn-secondary" id="camera-open">📷 Take Photo</button>
+                    <button type="button" class="btn btn-secondary" id="remove-image" hidden>🗑 Remove Image</button>
+                </div>
+
+                <div class="camera-panel" id="camera-panel" hidden>
+                    <video id="camera-video" autoplay playsinline muted></video>
+                    <div class="camera-buttons">
+                        <button type="button" class="btn btn-primary" id="camera-capture">Capture</button>
+                        <button type="button" class="btn btn-secondary" id="camera-retake" hidden>Retake</button>
+                        <button type="button" class="btn btn-secondary" id="camera-cancel">Cancel</button>
+                    </div>
+                </div>
+                <canvas id="camera-canvas" hidden></canvas>
+
+                <p class="img-error" id="img-error" hidden></p>
+
+                <div class="img-controls" id="img-controls" hidden>
+                    <div class="control-row">
+                        <label for="img-threshold">Threshold: <span id="threshold-value">128</span></label>
+                        <input type="range" id="img-threshold" min="1" max="254" value="128">
+                    </div>
+                    <div class="control-row control-row-inline">
+                        <label for="img-invert">Invert (light art on dark background)</label>
+                        <input type="checkbox" id="img-invert">
+                    </div>
+                    <p class="img-coverage" id="img-coverage" hidden></p>
+                </div>
+
+                <div class="price-tag">
+                    <div class="price-left">
+                        <span class="price-label">Laser Engraving</span>
+                        <span class="price-subtitle">Per Keychain</span>
+                    </div>
+                    <div class="price-right">
+                        <span class="price-currency">₹</span>
+                        <span class="price-amount">1</span>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" id="btn-pay-image" disabled>
+                    Proceed to Pay
+                    <svg class="btn-arrow" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Hidden legacy continue button for app.js compatibility -->
+            <button class="btn btn-primary" id="btn-shape-continue" style="display:none;"></button>
         </div>
     </section>
 
@@ -244,6 +279,15 @@
             <div class="loader-ring"></div>
             <h2 class="section-title" id="payment-title">Processing Payment...</h2>
             <p class="payment-sub" id="payment-sub">Please complete the payment in the Razorpay window.</p>
+
+            <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 12px; align-items: center;">
+                <button type="button" class="btn btn-secondary" id="btn-reopen-modal" style="width: 100%; max-width: 320px;">
+                    🔄 Generate Fresh QR Code
+                </button>
+                <button type="button" class="btn btn-primary" id="btn-open-direct-link" style="width: 100%; max-width: 320px;">
+                    ⚡ Pay via Direct Page (GPay / PhonePe / QR)
+                </button>
+            </div>
         </div>
     </section>
 
@@ -258,6 +302,47 @@
             </div>
             <h2 class="section-title success-title">You're in the Queue!</h2>
             <p class="queue-position">Position <span id="queue-number">#…</span></p>
+
+            <div class="order-progress" id="order-progress">
+                <div class="progress-step completed" id="step-payment">
+                    <div class="progress-icon">✓</div>
+                    <div class="progress-content">
+                        <div class="progress-title">Payment Received</div>
+                        <div class="progress-sub">Your payment has been confirmed.</div>
+                    </div>
+                </div>
+
+                <div class="progress-line"></div>
+
+                <div class="progress-step active" id="step-queue">
+                    <div class="progress-icon"><span class="spinner"></span></div>
+                    <div class="progress-content">
+                        <div class="progress-title">Waiting in Queue</div>
+                        <div class="progress-sub">Your order is waiting for engraving.</div>
+                    </div>
+                </div>
+
+                <div class="progress-line"></div>
+
+                <div class="progress-step" id="step-printing">
+                    <div class="progress-icon">🔥</div>
+                    <div class="progress-content">
+                        <div class="progress-title">Engraving</div>
+                        <div class="progress-sub">The laser is engraving your keychain.</div>
+                    </div>
+                </div>
+
+                <div class="progress-line"></div>
+
+                <div class="progress-step" id="step-done">
+                    <div class="progress-icon">✨</div>
+                    <div class="progress-content">
+                        <div class="progress-title">Ready for Pickup</div>
+                        <div class="progress-sub">Collect your finished keychain.</div>
+                    </div>
+                </div>
+            </div>
+
             <p class="success-sub">Your custom keychain <span id="success-for">for <strong id="success-name"></strong></span> is being prepared.</p>
 
             <div class="live-queue" id="live-queue" hidden>
@@ -283,6 +368,24 @@
         </div>
     </section>
 
+    <!-- Crop Modal -->
+    <div id="crop-modal" class="crop-modal" hidden>
+        <div class="crop-box">
+            <div class="crop-header">
+                <h2>Crop Image</h2>
+                <button id="crop-close" class="crop-close-btn">&times;</button>
+            </div>
+            <div class="crop-container">
+                <img id="crop-image" alt="Crop Preview">
+            </div>
+            <div class="crop-actions">
+                <button type="button" id="rotate-left" class="btn-secondary">↺ Rotate Left</button>
+                <button type="button" id="rotate-right" class="btn-secondary">↻ Rotate Right</button>
+                <button type="button" id="crop-confirm" class="btn-primary">Use Image</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
@@ -293,14 +396,13 @@
     <!-- Razorpay SDK -->
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
-    <!-- Shared layout constants + image processor (must load before app.js) -->
-    <script src="js/keychain-layout.js?v=5"></script>
-    <script src="js/image-processor.js?v=5"></script>
+    <!-- Shared layout constants + image processor -->
+    <script src="js/keychain-layout.js?v=14"></script>
+    <script src="js/image-processor.js?v=14"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css"></script>
 
     <!-- App -->
-    <script src="js/app.js?v=5"></script>
-
-    <!-- Dev/ops debug panel — only activates with ?debug=1 -->
-    <script src="js/debug-panel.js?v=5"></script>
+    <script src="js/app.js?v=14"></script>
+    <script src="js/debug-panel.js?v=14"></script>
 </body>
 </html>
