@@ -73,11 +73,12 @@ const imgCoverage = document.getElementById('img-coverage');
 // ===== CAMERA =====
 const cameraOpen = document.getElementById('camera-open');
 const removeImage = document.getElementById('remove-image');
-const cameraPanel = document.getElementById('camera-panel');
+const cameraModal = document.getElementById('camera-modal');
+const cameraBackdrop = document.getElementById('camera-backdrop');
+const cameraCloseX = document.getElementById('camera-close-x');
 const cameraVideo = document.getElementById('camera-video');
 const cameraCanvas = document.getElementById('camera-canvas');
 const cameraCapture = document.getElementById('camera-capture');
-const cameraRetake = document.getElementById('camera-retake');
 const cameraCancel = document.getElementById('camera-cancel');
 
 let cameraStream = null;
@@ -575,43 +576,40 @@ function resetTextState() {
 // ===== CAMERA FUNCTIONS =====
 
 async function openCamera() {
-
     try {
-
         cameraStream = await navigator.mediaDevices.getUserMedia({
             video: {
-                facingMode: "environment"
+                facingMode: "environment",
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
             }
         });
 
-        cameraVideo.srcObject = cameraStream;
+        if (cameraVideo) {
+            cameraVideo.srcObject = cameraStream;
+            await cameraVideo.play();
+        }
 
-        cameraPanel.hidden = false;
-
-        cameraRetake.hidden = true;
-
+        if (cameraModal) {
+            cameraModal.hidden = false;
+        }
     } catch (err) {
-
         alert("Unable to access the camera.");
-
         console.error(err);
-
     }
-
 }
 
 function stopCamera() {
-
-    if (!cameraStream) return;
-
-    cameraStream.getTracks().forEach(track => track.stop());
-
-    cameraStream = null;
-
-    cameraVideo.srcObject = null;
-
-    cameraPanel.hidden = true;
-
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+    if (cameraVideo) {
+        cameraVideo.srcObject = null;
+    }
+    if (cameraModal) {
+        cameraModal.hidden = true;
+    }
 }
 
 async function openCropEditor(file) {
@@ -620,7 +618,11 @@ async function openCropEditor(file) {
         cropper = null;
     }
 
-    cropModal.hidden = false;
+    if (cropModal) {
+        cropModal.hidden = false;
+        cropModal.classList.remove('crop-shape-rectangle', 'crop-shape-circle', 'crop-shape-heart');
+        cropModal.classList.add('crop-shape-' + (selectedShapeId || 'rectangle'));
+    }
 
     const initCropper = () => {
         if (cropper) {
@@ -628,7 +630,13 @@ async function openCropEditor(file) {
             cropper = null;
         }
         const shape = window.getShape(selectedShapeId);
-        const aspect = shape ? (shape.width / shape.height) : (72 / 35);
+        let aspect = 72 / 35;
+        if (shape) {
+            if (shape.id === 'circle') aspect = 1;
+            else if (shape.id === 'heart') aspect = 55 / 50;
+            else aspect = shape.width / shape.height;
+        }
+
         if (typeof Cropper !== 'undefined') {
             cropper = new Cropper(cropImage, {
                 aspectRatio: aspect,
@@ -656,31 +664,32 @@ async function openCropEditor(file) {
 }
 
 rotateLeft.addEventListener('click', () => {
-
-    if (cropper)
-        cropper.rotate(-90);
-
+    if (cropper) cropper.rotate(-90);
 });
 
 rotateRight.addEventListener('click', () => {
-
-    if (cropper)
-        cropper.rotate(90);
-
+    if (cropper) cropper.rotate(90);
 });
 
 cropClose.addEventListener('click', () => {
-
     if (cropper) {
-
         cropper.destroy();
         cropper = null;
-
     }
-
-    cropModal.hidden = true;
-
+    if (cropModal) cropModal.hidden = true;
 });
+
+if (cropModal) {
+    cropModal.addEventListener('click', (e) => {
+        if (e.target === cropModal) {
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+            cropModal.hidden = true;
+        }
+    });
+}
 
 cropConfirm.addEventListener('click', async () => {
 
@@ -705,7 +714,7 @@ cropConfirm.addEventListener('click', async () => {
     cropper.destroy();
     cropper = null;
 
-    cropModal.hidden = true;
+    if (cropModal) cropModal.hidden = true;
 
     await handleImageFile(file);
 
@@ -753,20 +762,20 @@ async function handleImageFile(file) {
         return;
     }
     positionImageCanvas();
-renderImageCanvas();
+    renderImageCanvas();
 
-imgKeychain.classList.add('has-image');
-removeImage.hidden = false;
+    imgKeychain.classList.add('has-image');
+    removeImage.hidden = false;
 
-imgControls.hidden = false;
+    imgControls.hidden = false;
 
-imgThreshold.value = String(imageProcessor.threshold);
-thresholdValue.textContent = imageProcessor.threshold;
-imgInvert.checked = imageProcessor.invert;
+    imgThreshold.value = String(imageProcessor.threshold);
+    thresholdValue.textContent = imageProcessor.threshold;
+    imgInvert.checked = imageProcessor.invert;
 
-btnPayImage.disabled = false;
+    btnPayImage.disabled = false;
 
-updateCoverageWarning();
+    updateCoverageWarning();
 }
 
 function updateCoverageWarning() {
@@ -786,25 +795,38 @@ if (imgReplace) {
 }
 // ===== CAMERA BUTTON =====
 
-cameraOpen.addEventListener('click', () => {
+if (cameraOpen) {
+    cameraOpen.addEventListener('click', () => {
+        openCamera();
+    });
+}
 
-    openCamera();
+if (cameraCancel) {
+    cameraCancel.addEventListener('click', () => {
+        stopCamera();
+    });
+}
 
-});
+if (cameraCloseX) {
+    cameraCloseX.addEventListener('click', () => {
+        stopCamera();
+    });
+}
 
+if (cameraBackdrop) {
+    cameraBackdrop.addEventListener('click', () => {
+        stopCamera();
+    });
+}
 
-cameraCancel.addEventListener('click', () => {
+if (cameraModal) {
+    cameraModal.addEventListener('click', (e) => {
+        if (e.target === cameraModal) {
+            stopCamera();
+        }
+    });
+}
 
-    stopCamera();
-
-});
-cameraRetake.addEventListener('click', () => {
-
-    stopCamera();
-
-    openCamera();
-
-});
 imgFile.addEventListener('change', () => {
 
     const file = imgFile.files && imgFile.files[0];
@@ -817,36 +839,32 @@ imgFile.addEventListener('change', () => {
 });
 
 // ===== CAMERA CAPTURE =====
+if (cameraCapture) {
+    cameraCapture.addEventListener('click', async () => {
+        if (!cameraStream) return;
 
-cameraCapture.addEventListener('click', async () => {
+        const video = cameraVideo;
+        const canvas = cameraCanvas;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
 
-    if (!cameraStream) return;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
 
-    const video = cameraVideo;
-    const canvas = cameraCanvas;
+        const blob = await new Promise(resolve =>
+            canvas.toBlob(resolve, 'image/png')
+        );
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+        const file = new File(
+            [blob],
+            'camera-photo.png',
+            { type: 'image/png' }
+        );
 
-    const ctx = canvas.getContext('2d');
-
-    ctx.drawImage(video, 0, 0);
-
-    const blob = await new Promise(resolve =>
-        canvas.toBlob(resolve, 'image/png')
-    );
-
-    const file = new File(
-        [blob],
-        'camera-photo.png',
-        { type: 'image/png' }
-    );
-
-    stopCamera();
-
-    openCropEditor(file);
-
-});
+        stopCamera();
+        openCropEditor(file);
+    });
+}
 
 imgThreshold.addEventListener('input', () => {
 

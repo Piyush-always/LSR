@@ -23,7 +23,7 @@ window.KEYCHAIN_SHAPES = {
     rectangle: {
         id: 'rectangle',
         name: 'Rectangle',
-        desc: 'Classic tag',
+        desc: '72 × 35 mm',
         width: 72,
         height: 35,
         viewBox: '-7 -7 86 49',
@@ -63,16 +63,16 @@ window.KEYCHAIN_SHAPES = {
             <text x="-4.5" y="17.5" font-size="2.6" text-anchor="middle" fill="#888" font-family="Inter, sans-serif" font-weight="600" transform="rotate(-90, -4.5, 17.5)">35 mm</text>
         `,
         iconSvg: `
-            <svg viewBox="0 0 72 35" width="48" height="24">
-                <rect x="2" y="2" width="68" height="31" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
-                <circle cx="7" cy="17.5" r="2.5" fill="currentColor"/>
+            <svg viewBox="0 0 72 35" width="44" height="22">
+                <rect x="2" y="2" width="68" height="31" rx="4" fill="none" stroke="currentColor" stroke-width="2.2"/>
+                <circle cx="8" cy="17.5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
             </svg>
         `
     },
     circle: {
         id: 'circle',
         name: 'Circle',
-        desc: 'Round disc',
+        desc: 'Ø 50 mm',
         width: 50,
         height: 50,
         viewBox: '-7 -7 64 64',
@@ -80,8 +80,8 @@ window.KEYCHAIN_SHAPES = {
         viewBoxH: 64,
         originX: 7,
         originY: 7,
-        dimLabelX: '50 mm',
-        dimLabelY: '50 mm',
+        dimLabelX: 'Ø 50 mm',
+        dimLabelY: 'Ø 50 mm',
         hole: { cx: 25, cy: 7, r: 2.5 },
         outlineSvg: '<circle cx="25" cy="25" r="23" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>',
         borderPathD: 'M 25 2 A 23 23 0 1 1 24.99 2 Z',
@@ -105,23 +105,23 @@ window.KEYCHAIN_SHAPES = {
             <line x1="0" y1="-3" x2="50" y2="-3" stroke="#bbb" stroke-width="0.18"/>
             <line x1="0" y1="-2" x2="0" y2="-4" stroke="#bbb" stroke-width="0.18"/>
             <line x1="50" y1="-2" x2="50" y2="-4" stroke="#bbb" stroke-width="0.18"/>
-            <text x="25" y="-4.5" font-size="2.6" text-anchor="middle" fill="#888" font-family="Inter, sans-serif" font-weight="600">50 mm</text>
+            <text x="25" y="-4.5" font-size="2.6" text-anchor="middle" fill="#888" font-family="Inter, sans-serif" font-weight="600">Ø 50 mm</text>
             <line x1="-3" y1="0" x2="-3" y2="50" stroke="#bbb" stroke-width="0.18"/>
             <line x1="-2" y1="0" x2="-4" y2="0" stroke="#bbb" stroke-width="0.18"/>
             <line x1="-2" y1="50" x2="-4" y2="50" stroke="#bbb" stroke-width="0.18"/>
-            <text x="-4.5" y="25" font-size="2.6" text-anchor="middle" fill="#888" font-family="Inter, sans-serif" font-weight="600" transform="rotate(-90, -4.5, 25)">50 mm</text>
+            <text x="-4.5" y="25" font-size="2.6" text-anchor="middle" fill="#888" font-family="Inter, sans-serif" font-weight="600" transform="rotate(-90, -4.5, 25)">Ø 50 mm</text>
         `,
         iconSvg: `
-            <svg viewBox="0 0 50 50" width="36" height="36">
-                <circle cx="25" cy="25" r="22" fill="none" stroke="currentColor" stroke-width="2"/>
-                <circle cx="25" cy="7" r="2.5" fill="currentColor"/>
+            <svg viewBox="0 0 50 50" width="30" height="30">
+                <circle cx="25" cy="25" r="22" fill="none" stroke="currentColor" stroke-width="2.2"/>
+                <circle cx="25" cy="8" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
             </svg>
         `
     },
     heart: {
         id: 'heart',
         name: 'Heart',
-        desc: 'Expressive tag',
+        desc: '55 × 50 mm',
         width: 55,
         height: 50,
         viewBox: '-7 -7 69 64',
@@ -161,9 +161,9 @@ window.KEYCHAIN_SHAPES = {
             <text x="-4.5" y="25" font-size="2.6" text-anchor="middle" fill="#888" font-family="Inter, sans-serif" font-weight="600" transform="rotate(-90, -4.5, 25)">50 mm</text>
         `,
         iconSvg: `
-            <svg viewBox="0 0 55 50" width="38" height="34">
-                <path d="M 27.5 46 C 14 36 2 26 2 15 C 2 7 8 2 16 2 C 21.5 2 25.5 5.5 27.5 9.5 C 29.5 5.5 33.5 2 39 2 C 47 2 53 7 53 15 C 53 26 41 36 27.5 46 Z" fill="none" stroke="currentColor" stroke-width="2"/>
-                <circle cx="27.5" cy="7" r="2.5" fill="currentColor"/>
+            <svg viewBox="0 0 55 50" width="32" height="30">
+                <path d="M 27.5 46 C 14 36 2 26 2 15 C 2 7 8 2 16 2 C 21.5 2 25.5 5.5 27.5 9.5 C 29.5 5.5 33.5 2 39 2 C 47 2 53 7 53 15 C 53 26 41 36 27.5 46 Z" fill="none" stroke="currentColor" stroke-width="2.2"/>
+                <circle cx="27.5" cy="8" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
             </svg>
         `
     }
