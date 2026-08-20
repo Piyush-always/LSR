@@ -57,6 +57,83 @@ const emojiPanel = document.getElementById('emoji-panel');
 const paymentTitle = document.getElementById('payment-title');
 const paymentSub = document.getElementById('payment-sub');
 
+// ===== PHONE CHECKOUT MODAL ELEMENTS =====
+const phoneModal = document.getElementById('phone-modal');
+const modalPhoneInput = document.getElementById('modal-phone-input');
+const modalPhoneHint = document.getElementById('modal-phone-hint');
+const btnPhoneContinue = document.getElementById('btn-phone-continue');
+const phoneModalClose = document.getElementById('phone-modal-close');
+const phoneModalBackdrop = document.getElementById('phone-modal-backdrop');
+
+let pendingPaymentMode = 'text';
+
+function isValidPhoneNumber(phone) {
+    return /^[6-9]\d{9}$/.test(String(phone).trim());
+}
+
+function openPhoneModal(mode) {
+    pendingPaymentMode = mode;
+    if (phoneModal) {
+        phoneModal.hidden = false;
+        if (modalPhoneInput) {
+            modalPhoneInput.value = '';
+            modalPhoneInput.focus();
+        }
+        const group = phoneModal.querySelector('.phone-input-group');
+        if (group) group.classList.remove('invalid', 'valid');
+        if (modalPhoneHint) modalPhoneHint.textContent = 'Enter 10-digit mobile number';
+    }
+}
+
+function closePhoneModal() {
+    if (phoneModal) phoneModal.hidden = true;
+    if (btnPay) btnPay.disabled = nameInput.value.trim().length === 0;
+    if (btnPayImage) btnPayImage.disabled = !imageProcessor.hasImage;
+}
+
+if (phoneModalClose) phoneModalClose.addEventListener('click', closePhoneModal);
+if (phoneModalBackdrop) phoneModalBackdrop.addEventListener('click', closePhoneModal);
+
+if (modalPhoneInput) {
+    modalPhoneInput.addEventListener('input', (e) => {
+        const cleanVal = e.target.value.replace(/\D/g, '').slice(0, 10);
+        e.target.value = cleanVal;
+        const valid = isValidPhoneNumber(cleanVal);
+        const group = phoneModal.querySelector('.phone-input-group');
+        if (group) {
+            group.classList.toggle('valid', valid);
+            group.classList.toggle('invalid', cleanVal.length === 10 && !valid);
+        }
+        if (modalPhoneHint) {
+            modalPhoneHint.textContent = valid 
+                ? '✓ Valid mobile number for thank-you SMS' 
+                : (cleanVal.length > 0 && cleanVal.length < 10 ? 'Enter full 10-digit mobile number' : 'Enter 10-digit mobile number');
+        }
+    });
+
+    modalPhoneInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && btnPhoneContinue) {
+            e.preventDefault();
+            btnPhoneContinue.click();
+        }
+    });
+}
+
+if (btnPhoneContinue) {
+    btnPhoneContinue.addEventListener('click', () => {
+        const rawPhone = (modalPhoneInput ? modalPhoneInput.value : '').replace(/\D/g, '');
+        if (!isValidPhoneNumber(rawPhone)) {
+            const group = phoneModal.querySelector('.phone-input-group');
+            if (group) group.classList.add('invalid');
+            if (modalPhoneHint) modalPhoneHint.textContent = 'Please enter a valid 10-digit mobile number (starting with 6-9)';
+            if (modalPhoneInput) modalPhoneInput.focus();
+            return;
+        }
+        closePhoneModal();
+        initiatePayment(pendingPaymentMode, rawPhone);
+    });
+}
+
 // Image-design elements
 const imgKeychain = document.getElementById('img-keychain');
 const imgCanvas = document.getElementById('img-canvas');
@@ -535,6 +612,9 @@ function renderKeychainText() {
 
     const maxW = shape.textArea.maxTextWidth || 50;
 
+    // Evaluate payment button status
+    if (btnPay) btnPay.disabled = raw.length === 0;
+
     // Measure rendered text width and scale down if it exceeds shape boundary
     try {
         const bbox = textEl.getBBox();
@@ -935,13 +1015,13 @@ async function uploadImageBlobs() {
 btnPay.addEventListener('click', () => {
     if (nameInput.value.trim().length === 0) return;
     btnPay.disabled = true;
-    initiatePayment('text');
+    openPhoneModal('text');
 });
 
 btnPayImage.addEventListener('click', () => {
     if (!imageProcessor.hasImage) return;
     btnPayImage.disabled = true;
-    initiatePayment('image');
+    openPhoneModal('image');
 });
 
 function setPaymentMessage(title, sub) {
@@ -960,11 +1040,14 @@ let lastPaymentMode = 'text';
 let lastPaymentPayload = null;
 let lastDisplayName = '';
 
-async function initiatePayment(mode) {
+async function initiatePayment(mode, userPhone) {
     showScreen('payment');
 
     try {
         let payload, displayName;
+        const rawPhone = userPhone || '';
+        const phone_number = rawPhone;
+        const phone_e164 = rawPhone ? ('91' + rawPhone) : '';
 
         if (mode === 'image') {
             setPaymentMessage('Processing your image…', 'Preparing design.');
@@ -986,11 +1069,11 @@ async function initiatePayment(mode) {
                 }
             }
 
-            payload = { mode: 'image', shape: selectedShapeId, machineId: getMachineId(), printImageBase64, ...paths };
+            payload = { mode: 'image', shape: selectedShapeId, machineId: getMachineId(), printImageBase64, phone_number, phone_e164, ...paths };
             displayName = 'your image';
         } else {
             const name = nameInput.value.trim();
-            payload = { mode: 'text', name, fontId: selectedFontId, shape: selectedShapeId, machineId: getMachineId() };
+            payload = { mode: 'text', name, fontId: selectedFontId, shape: selectedShapeId, machineId: getMachineId(), phone_number, phone_e164 };
             displayName = name;
         }
 
@@ -1000,23 +1083,27 @@ async function initiatePayment(mode) {
 
         setPaymentMessage('Preparing Payment...', 'Redirecting to Razorpay secure checkout.');
 
-        // Save order payload to local storage for return redirect recovery
+        // Save order payload to local storage for recovery on return
         localStorage.setItem('pending_order_payload', JSON.stringify({ ...payload, displayName, mode }));
 
-        // Primary Flow: Create & redirect to Razorpay Payment Link (bypasses iframe QR issues)
+        // Full-page Razorpay Redirect: Bypasses iframe QR refresh issues & pre-fills customer phone
         try {
             const linkRes = await fetch('https://us-central1-laser-keychain-official.cloudfunctions.net/createPaymentLinkHttp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ displayName, callbackUrl: window.location.origin + window.location.pathname })
+                body: JSON.stringify({ ...payload, displayName, callbackUrl: window.location.origin + window.location.pathname })
             });
             const linkData = await linkRes.json();
             if (linkData && linkData.short_url) {
+                if (linkData.firestoreId) {
+                    payload.firestoreId = linkData.firestoreId;
+                    localStorage.setItem('pending_order_payload', JSON.stringify({ ...payload, displayName, mode }));
+                }
                 window.location.href = linkData.short_url;
                 return;
             }
         } catch (err) {
-            console.warn('Payment link creation fallback to modal:', err);
+            console.warn('Payment link creation warning, falling back to popup modal:', err);
         }
 
         // Secondary Fallback: Create Order ID & open popup modal
@@ -1038,7 +1125,8 @@ async function initiatePayment(mode) {
         if (typeof Razorpay !== 'undefined') {
             openRazorpayCheckout({ displayName, mode, payload, orderId });
         } else {
-            await finalizeOrderAndQueue(payload, displayName, mode);
+            alert('Razorpay SDK is loading. Please try again in a moment.');
+            returnToDesign(mode);
         }
 
     } catch (error) {
@@ -1049,12 +1137,11 @@ async function initiatePayment(mode) {
 function openRazorpayCheckout({ displayName, mode, payload, orderId }) {
     const options = {
         key: RAZORPAY_LIVE_KEY_ID,
-        amount: 100, // ₹1.00 = 100 paise
-        currency: 'INR',
         name: 'Laser Keychain',
         description: mode === 'image' ? 'Custom image keychain' : ('Custom keychain: "' + displayName + '"'),
         prefill: {
             name: mode === 'image' ? 'Customer' : displayName,
+            contact: payload.phone_number ? ('+91' + payload.phone_number.slice(-10)) : '',
         },
         retry: {
             enabled: true,
@@ -1062,9 +1149,7 @@ function openRazorpayCheckout({ displayName, mode, payload, orderId }) {
         },
         theme: { color: '#00e5ff' },
         handler: async function (response) {
-            payload.razorpay_payment_id = response.razorpay_payment_id || ('pay_live_' + Date.now());
-            if (response.razorpay_order_id) payload.razorpay_order_id = response.razorpay_order_id;
-            await finalizeOrderAndQueue(payload, displayName, mode);
+            handlePaymentSuccess(response, payload.firestoreId || '', displayName, mode);
         },
         modal: {
             confirm_close: true,
@@ -1076,6 +1161,9 @@ function openRazorpayCheckout({ displayName, mode, payload, orderId }) {
 
     if (orderId && !orderId.startsWith('order_live_')) {
         options.order_id = orderId;
+    } else {
+        options.amount = 100; // ₹1.00 = 100 paise
+        options.currency = 'INR';
     }
 
     try {
@@ -1086,48 +1174,12 @@ function openRazorpayCheckout({ displayName, mode, payload, orderId }) {
         });
         rzp.open();
     } catch (e) {
-        console.warn('Razorpay checkout modal warning, finalizing order:', e);
-        finalizeOrderAndQueue(payload, displayName, mode);
+        console.warn('Razorpay checkout modal warning:', e);
+        returnToDesign(mode);
+        alert('Unable to open Razorpay payment popup. Please click "Pay via Direct Page" below.');
     }
 }
 
-async function finalizeOrderAndQueue(payload, displayName, mode) {
-    setPaymentMessage('Placing Order...', 'Adding your order to the live queue.');
-    const result = await db.runTransaction(async (transaction) => {
-        const counterRef = db.doc('meta/counter');
-        const counterDoc = await transaction.get(counterRef);
-
-        let nextPosition = 1;
-        if (counterDoc.exists) {
-            nextPosition = (counterDoc.data().last_position || 0) + 1;
-        }
-
-        transaction.set(counterRef, { last_position: nextPosition }, { merge: true });
-
-        const orderRef = db.collection('orders').doc();
-        transaction.set(orderRef, {
-            ...payload,
-            status: 'queued',
-            queue_position: nextPosition,
-            created_at: firebase.firestore.FieldValue.serverTimestamp(),
-        });
-
-        return { firestoreId: orderRef.id, queue_position: nextPosition };
-    });
-
-    const { firestoreId, queue_position } = result;
-
-    activeOrder = { firestoreId, name: displayName, queue_position, mode };
-    localStorage.setItem('activeOrder', JSON.stringify(activeOrder));
-
-    renderSuccessIdentity(displayName, mode);
-    queueNumber.textContent = '#' + queue_position;
-    verifyBanner.hidden = true;
-    updateOrderProgress("queued");
-    showScreen('success');
-    startLiveQueueListener();
-    startOwnOrderListener(firestoreId);
-}
 
 // Return the user to whichever design screen they came from, re-enabling the
 // pay button.
@@ -1184,28 +1236,54 @@ function renderSuccessIdentity(displayName, mode) {
 
 async function runVerify(payload) {
     try {
-        const verifyPayment = functions.httpsCallable('verifyPayment');
-        const result = await verifyPayment({
-            razorpay_order_id: payload.razorpay_order_id,
-            razorpay_payment_id: payload.razorpay_payment_id,
-            razorpay_signature: payload.razorpay_signature,
-            firestoreId: payload.firestoreId,
-        });
-        const { queue_position } = result.data;
+        let queue_position = null;
+        let firestoreId = payload.firestoreId || '';
+        let displayName = payload.name || 'Customer';
+        let mode = payload.mode || 'text';
+
+        try {
+            const httpRes = await fetch('https://us-central1-laser-keychain-official.cloudfunctions.net/verifyPaymentHttp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    razorpay_order_id: payload.razorpay_order_id || '',
+                    razorpay_payment_id: payload.razorpay_payment_id || '',
+                    razorpay_signature: payload.razorpay_signature || '',
+                    firestoreId: payload.firestoreId || '',
+                })
+            });
+            const data = await httpRes.json();
+            if (data && data.success) {
+                queue_position = data.queue_position;
+                if (data.firestoreId) firestoreId = data.firestoreId;
+                if (data.displayName) displayName = data.displayName;
+                if (data.mode) mode = data.mode;
+            }
+        } catch (httpErr) {
+            console.warn('HTTP verify failed, trying SDK callable:', httpErr);
+            if (typeof functions !== 'undefined' && functions.httpsCallable) {
+                const verifyCallable = functions.httpsCallable('verifyPayment');
+                const result = await verifyCallable(payload);
+                queue_position = result.data.queue_position;
+            }
+        }
 
         localStorage.removeItem('pendingVerify');
-        activeOrder = { firestoreId: payload.firestoreId, name: payload.name, queue_position, mode: payload.mode };
-        localStorage.setItem('activeOrder', JSON.stringify(activeOrder));
-
-        renderSuccessIdentity(payload.name, payload.mode);
-        queueNumber.textContent = '#' + queue_position;
-
+        if (queue_position) {
+            activeOrder = { firestoreId, name: displayName, queue_position, mode };
+            localStorage.setItem('activeOrder', JSON.stringify(activeOrder));
+            renderSuccessIdentity(displayName, mode);
+            queueNumber.textContent = '#' + queue_position;
+            startOwnOrderListener(firestoreId);
+        } else {
+            verifyBanner.hidden = false;
+            verifyBanner.textContent = 'Payment received! Assigning queue spot...';
+        }
         if (document.body.dataset.screen === 'success') startLiveQueueListener();
-        startOwnOrderListener(payload.firestoreId);
     } catch (error) {
         console.error('Payment verification failed:', error);
         verifyBanner.hidden = false;
-        verifyBanner.textContent = 'Payment received but we couldn\'t assign your queue spot. Please contact support with this ID: ' + payload.firestoreId;
+        verifyBanner.textContent = 'Payment received! If queue spot does not update, please refresh.';
     }
 }
 
@@ -1448,22 +1526,41 @@ if (btnOpenDirectLink) {
 function checkRedirectPayment() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('payment') || urlParams.has('razorpay_payment_id') || urlParams.has('payment_id') || urlParams.has('razorpay_payment_link_id') || urlParams.has('razorpay_payment_link_status')) {
-        const stored = localStorage.getItem('pending_order_payload');
+        // SYNCHRONOUSLY SHOW SUCCESS ENGRAVING SCREEN IMMEDIATELY
+        suppressPushState = true;
+        showScreenInternal('success');
+        suppressPushState = false;
+        window.history.replaceState({ screen: 'success' }, document.title, window.location.pathname + '#success');
+
+        let stored = localStorage.getItem('pending_order_payload');
+        let payload = null;
         if (stored) {
             try {
-                const payload = JSON.parse(stored);
-                payload.razorpay_payment_id = urlParams.get('razorpay_payment_id') || urlParams.get('payment_id') || ('pay_direct_' + Date.now());
-                if (urlParams.has('razorpay_payment_link_id')) {
-                    payload.razorpay_order_id = urlParams.get('razorpay_payment_link_id');
-                }
-                localStorage.removeItem('pending_order_payload');
-                window.history.replaceState({}, document.title, window.location.pathname);
-                finalizeOrderAndQueue(payload, payload.displayName || 'Customer', payload.mode || 'text');
-                return true;
+                payload = JSON.parse(stored);
             } catch (e) {
-                console.warn('Redirect payment recovery warning:', e);
+                console.warn('Failed to parse pending_order_payload:', e);
             }
         }
+        if (!payload) {
+            payload = {
+                mode: 'text',
+                name: 'Custom Keychain',
+                fontId: 'pixel',
+                shape: 'rectangle',
+                machineId: getMachineId(),
+                displayName: 'Custom Keychain'
+            };
+        }
+        const firestoreId = urlParams.get('firestoreId') || payload.firestoreId || '';
+        const response = {
+            razorpay_payment_id: urlParams.get('razorpay_payment_id') || urlParams.get('payment_id') || ('pay_direct_' + Date.now()),
+            razorpay_order_id: urlParams.get('razorpay_payment_link_id') || urlParams.get('razorpay_order_id') || '',
+            razorpay_signature: urlParams.get('razorpay_signature') || '',
+        };
+        
+        localStorage.removeItem('pending_order_payload');
+        handlePaymentSuccess(response, firestoreId, payload.displayName || payload.name || 'Customer', payload.mode || 'text');
+        return true;
     }
     return false;
 }

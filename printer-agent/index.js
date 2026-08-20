@@ -20,18 +20,26 @@ try {
     console.warn('[CONFIG] Could not read config.json:', e.message);
 }
 const MACHINE_ID = process.env.MACHINE_ID || CONFIG.machineId || 'laser-001';
-const SERVICE_ACCOUNT_PATH = path.join(__dirname, 'service-account.json');
+const SERVICE_ACCOUNT_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(__dirname, 'service-account.json');
 const STORAGE_BUCKET = process.env.STORAGE_BUCKET || 'laser-keychain-official.firebasestorage.app';
 const RECONNECT_INTERVAL_MS = 5000;
 const BETWEEN_JOBS_DELAY_MS = 5000;
 
 if (admin.apps.length === 0) {
-    const serviceAccount = require(SERVICE_ACCOUNT_PATH);
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        storageBucket: STORAGE_BUCKET,
-    });
+    if (fs.existsSync(SERVICE_ACCOUNT_PATH)) {
+        const serviceAccount = require(SERVICE_ACCOUNT_PATH);
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            storageBucket: STORAGE_BUCKET,
+        });
+    } else {
+        admin.initializeApp({
+            credential: admin.credential.applicationDefault(),
+            storageBucket: STORAGE_BUCKET,
+        });
+    }
 }
+
 const db = admin.firestore();
 
 // State

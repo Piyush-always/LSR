@@ -1557,6 +1557,185 @@ body[data-screen="welcome"] .home-btn {
     box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
 }
 
+/* ===== PHONE NUMBER INPUT STYLES ===== */
+.phone-input-group {
+    margin-top: 20px;
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.phone-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    color: var(--text-muted, #64748b);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+.phone-subtitle {
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: normal;
+    color: #64748b;
+    text-transform: none;
+}
+
+.phone-input-wrapper {
+    display: flex;
+    align-items: center;
+    background: rgba(248, 250, 252, 0.9);
+    border: 1.5px solid var(--border, #e2e8f0);
+    border-radius: var(--radius-md, 12px);
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.phone-input-wrapper:focus-within {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    background: #ffffff;
+}
+
+.country-code {
+    padding: 12px 14px;
+    background: #f1f5f9;
+    font-weight: 700;
+    font-size: 0.92rem;
+    color: #334155;
+    border-right: 1px solid var(--border, #e2e8f0);
+    user-select: none;
+    white-space: nowrap;
+}
+
+.phone-field {
+    flex: 1;
+    padding: 12px 16px;
+    border: none;
+    outline: none;
+    font-family: inherit;
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: #0f172a;
+    background: transparent;
+}
+
+.phone-field::placeholder {
+    color: #94a3b8;
+    letter-spacing: normal;
+    font-weight: 400;
+}
+
+.phone-hint {
+    display: block;
+    font-size: 0.76rem;
+    color: var(--text-dim, #94a3b8);
+    margin-top: 6px;
+    transition: color 0.2s ease;
+}
+
+.phone-input-group.invalid .phone-input-wrapper {
+    border-color: #ef4444;
+}
+
+.phone-input-group.invalid .phone-hint {
+    color: #ef4444;
+    font-weight: 600;
+}
+
+.phone-input-group.valid .phone-input-wrapper {
+    border-color: #10b981;
+}
+
+.phone-input-group.valid .phone-hint {
+    color: #059669;
+}
+
+/* ===== PHONE NUMBER CHECKOUT MODAL ===== */
+.phone-modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1060;
+    padding: 20px;
+}
+
+.phone-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.78);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.phone-modal-box {
+    position: relative;
+    z-index: 10;
+    background: #ffffff;
+    border-radius: var(--radius-xl, 20px);
+    padding: 28px;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: 0 24px 50px -12px rgba(15, 23, 42, 0.35);
+    border: 1px solid var(--border, #e2e8f0);
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+}
+
+.phone-modal-header {
+    margin-bottom: 16px;
+    position: relative;
+}
+
+.phone-modal-icon {
+    font-size: 2.2rem;
+    margin-bottom: 8px;
+}
+
+.phone-modal-header h3 {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.phone-modal-sub {
+    font-size: 0.84rem;
+    color: var(--text-muted, #64748b);
+    line-height: 1.4;
+}
+
+.phone-modal-close-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #f1f5f9;
+    border: none;
+    font-size: 1.4rem;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.phone-modal-close-btn:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
 /* RESPONSIVE LAYOUT & MEDIA QUERIES */
 @media (max-width: 1199px) {
     .sample-metal { width: 175px; }
