@@ -28,6 +28,10 @@ const TARGETS = [
         name: 'create-mytag',
         url:  'https://create-mytag.invengic.in',
     },
+    {
+        name: 'invengic',
+        url:  'https://invengic.in',
+    },
 ];
 
 // =====================================================================

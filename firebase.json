@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "site": "laser-keychain-official",
+    "site": "invengic",
     "public": ".",
     "ignore": [
       "firebase.json",
