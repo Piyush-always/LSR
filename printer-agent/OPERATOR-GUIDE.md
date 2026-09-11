@@ -285,7 +285,7 @@ The position logging (`[LASER] Current position: …` and `[LASER] Position afte
 
 | Thing | Value |
 |-------|-------|
-| Customer website | https://laser-inv.web.app |
+| Customer website | https://laser.invengic.in |
 | Firebase Console | https://console.firebase.google.com |
 | Price per keychain | **₹1 (real payment, live mode)** |
 | Start command | `set LASER_PORT=COM8 && node index.js` |

@@ -335,6 +335,28 @@ heroSamples.forEach(sample => {
     });
 });
 
+// Footer quick links navigation
+document.querySelectorAll('.footer-link-shape').forEach(link => {
+    link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const shapeId = link.dataset.shape;
+        if (shapeId) selectShape(shapeId);
+        showScreen('create');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+});
+
+document.querySelectorAll('.footer-link-mode').forEach(link => {
+    link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const mode = link.dataset.mode;
+        showScreen('create');
+        if (mode === 'image' && typeImage) typeImage.click();
+        else if (mode === 'text' && typeName) typeName.click();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+});
+
 const heroCanvas = document.getElementById('hero-canvas');
 if (heroCanvas && window.matchMedia('(min-width: 900px)').matches) {
     heroCanvas.addEventListener('mousemove', (e) => {

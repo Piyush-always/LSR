@@ -11,7 +11,7 @@ SafeSearch) before payment.
 intern taking it over). It covers how the whole thing fits together, how to run it, how
 to tell if it's healthy, and how to fix the things that actually break in practice.
 
-- **Live site:** https://laser-inv.web.app
+- **Live site:** https://laser.invengic.in
 - **Firebase project:** `laser-inv`
 - **Price:** ₹1 per keychain (`amount: 100` paise — [functions/index.js:48](functions/index.js#L48))
 

@@ -554,7 +554,7 @@ exports.createPaymentLinkHttp = functions.https.onRequest((req, res) => {
                 : buildTextOrder(reqData);
 
             const orderRef = db.collection('orders').doc();
-            const baseUrl = reqData.callbackUrl || 'https://laser-keychain-official.web.app';
+            const baseUrl = reqData.callbackUrl || 'https://laser.invengic.in';
             const callbackWithParams = baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'payment=success&firestoreId=' + orderRef.id;
 
             const pLink = await rzp.paymentLink.create({

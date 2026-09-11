@@ -18,9 +18,16 @@
 
     <!-- App Header Navigation -->
     <header class="app-header">
-        <a class="brand-logo" href="#" id="nav-brand">
-            <span class="brand-dot"></span>
-            <span>LASER</span>
+        <a class="brand-logo" href="#" id="nav-brand" title="Laser Studio — Home">
+            <div class="brand-icon-wrap">
+                <svg class="laser-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3" fill="currentColor" opacity="0.2" />
+                    <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke-linecap="round" />
+                    <path d="m4.93 4.93 2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke-linecap="round" opacity="0.6" />
+                </svg>
+                <span class="brand-dot"></span>
+            </div>
+            <span class="brand-text">LASER<span class="brand-text-accent">STUDIO</span></span>
         </a>
 
         <div class="nav-progress">
@@ -52,121 +59,213 @@
 
     <!-- Screen 1: Welcome (Hero Showcase) -->
     <section id="screen-welcome" class="screen active">
-        <div class="hero-canvas" id="hero-canvas">
+        <div class="welcome-wrapper">
+            <div class="hero-canvas" id="hero-canvas">
 
-            <!-- Decorative Canvas Background Grid & Ruler Lines -->
-            <div class="canvas-grid-bg" aria-hidden="true">
-                <div class="canvas-ruler-h"></div>
-                <div class="canvas-ruler-v"></div>
+                <!-- Decorative Canvas Background Grid & Ruler Lines -->
+                <div class="canvas-grid-bg" aria-hidden="true">
+                    <div class="canvas-ruler-h"></div>
+                    <div class="canvas-ruler-v"></div>
+                </div>
+
+                <!-- Main Central Editorial Hero Block -->
+                <div class="welcome-container">
+                    <div class="welcome-label">
+                        <span class="welcome-label-dot"></span>
+                        <span>LASER ENGRAVED · CUSTOM STUDIO</span>
+                    </div>
+
+                    <h1 class="welcome-title">
+                        MAKE IT<br><span class="title-accent">YOURS.</span>
+                    </h1>
+
+                    <p class="welcome-sub">
+                        Custom wooden keychains — laser engraved on the spot. Pick your shape & custom design.
+                    </p>
+
+                    <div class="welcome-actions">
+                        <button class="btn btn-primary" id="btn-start">
+                            Start creating
+                            <svg class="btn-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none"
+                                stroke="currentColor" stroke-width="2">
+                                <line x1="5" y1="12" x2="19" y2="12" />
+                                <polyline points="12,5 19,12 12,19" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="hero-trust-bar">
+                        <span class="trust-item">
+                            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+                                stroke-width="1.8">
+                                <rect x="2" y="2" width="12" height="12" rx="2" />
+                                <circle cx="5" cy="8" r="1.2" fill="currentColor" />
+                            </svg>
+                            Rectangle · Circle · Heart
+                        </span>
+                        <span class="trust-sep">•</span>
+                        <span class="trust-item">
+                            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+                                stroke-width="1.8">
+                                <path d="M8 2v12M2 8h14" />
+                            </svg>
+                            100% Natural Hardwood
+                        </span>
+                        <span class="trust-sep">•</span>
+                        <span class="trust-item">
+                            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+                                stroke-width="1.8">
+                                <polygon points="8,2 14,14 2,14" />
+                            </svg>
+                            Live Laser Queue
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Art-Directed Floating Keychain Samples (Interactive Showcase) -->
+                <div class="hero-samples-composition">
+
+                    <!-- Sample 1: Top-Left Rectangle (Real Portrait Photo Engraved Wood) -->
+                    <div class="hero-sample-item sample-pos-tl" data-shape="rectangle" role="button" tabindex="0"
+                        title="Click to customize Rectangle keychain">
+                        <div class="sample-image-wrap">
+                            <img src="assets/keychains/wood-rect-photo.png"
+                                alt="Rectangle Oak Wood Photo Laser Engraved Keychain" class="sample-png sample-wood" />
+                            <div class="sample-glow"></div>
+                        </div>
+                        <div class="sample-badge">Rectangle · Photo Engraved</div>
+                    </div>
+
+                    <!-- Sample 2: Top-Right Circle (Pet Portrait Engraved Walnut Wood) -->
+                    <div class="hero-sample-item sample-pos-tr" data-shape="circle" role="button" tabindex="0"
+                        title="Click to customize Circle keychain">
+                        <div class="sample-image-wrap">
+                            <img src="assets/keychains/wood-circle-photo.png"
+                                alt="Circle Walnut Wood Pet Photo Laser Engraved Keychain" class="sample-png sample-wood" />
+                            <div class="sample-glow"></div>
+                        </div>
+                        <div class="sample-badge">Circle · Pet Portrait</div>
+                    </div>
+
+                    <!-- Sample 3: Bottom-Left Heart (Couple Photo Engraved Birch Wood) -->
+                    <div class="hero-sample-item sample-pos-bl" data-shape="heart" role="button" tabindex="0"
+                        title="Click to customize Heart keychain">
+                        <div class="sample-image-wrap">
+                            <img src="assets/keychains/wood-heart-photo.png"
+                                alt="Heart Birch Wood Photo Laser Engraved Keychain" class="sample-png sample-wood" />
+                            <div class="sample-glow"></div>
+                        </div>
+                        <div class="sample-badge">Heart · Couple Photo</div>
+                    </div>
+
+                    <!-- Sample 4: Bottom-Right Rectangle (Typography Engraved Oak Wood) -->
+                    <div class="hero-sample-item sample-pos-br" data-shape="rectangle" role="button" tabindex="0"
+                        title="Click to customize Rectangle keychain">
+                        <div class="sample-image-wrap">
+                            <img src="assets/keychains/wood-rect-text.png"
+                                alt="Rectangle Oak Wood Text Laser Engraved Keychain"
+                                class="sample-png sample-wood" />
+                            <div class="sample-glow"></div>
+                        </div>
+                        <div class="sample-badge">Rectangle · Custom Text</div>
+                    </div>
+
+                    <!-- Sample 5: Mid-Left Accent (Heart · Natural Oak Text) -->
+                    <div class="hero-sample-item sample-pos-ml" data-shape="heart" role="button" tabindex="0"
+                        title="Click to customize Heart keychain">
+                        <div class="sample-image-wrap">
+                            <img src="assets/keychains/keychain-oak-heart.png"
+                                alt="Heart Natural Oak Wood Laser Engraved Keychain" class="sample-png sample-wood" />
+                            <div class="sample-glow"></div>
+                        </div>
+                        <div class="sample-badge">Heart · Natural Oak</div>
+                    </div>
+
+                    <!-- Sample 6: Mid-Right Accent (Circle · Walnut Engraved Crest) -->
+                    <div class="hero-sample-item sample-pos-mr" data-shape="circle" role="button" tabindex="0"
+                        title="Click to customize Circle keychain">
+                        <div class="sample-image-wrap">
+                            <img src="assets/keychains/keychain-wood-circle.png"
+                                alt="Circle Walnut Wood Laser Engraved Keychain" class="sample-png sample-wood" />
+                            <div class="sample-glow"></div>
+                        </div>
+                        <div class="sample-badge">Circle · Walnut Crest</div>
+                    </div>
+
+                </div>
             </div>
 
-            <!-- Main Central Editorial Hero Block -->
-            <div class="welcome-container">
-                <div class="welcome-label">
-                    <span class="welcome-label-dot"></span>
-                    <span>LASER ENGRAVED · CUSTOM STUDIO</span>
+            <!-- App Footer -->
+            <footer class="app-footer">
+                <div class="footer-container">
+                    <div class="footer-grid">
+                        <div class="footer-brand-col">
+                            <a class="brand-logo footer-logo" href="#" title="Laser Studio">
+                                <div class="brand-icon-wrap">
+                                    <svg class="laser-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="3" fill="currentColor" opacity="0.3" />
+                                        <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke-linecap="round" />
+                                        <path d="m4.93 4.93 2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke-linecap="round" opacity="0.6" />
+                                    </svg>
+                                </div>
+                                <span class="brand-text">LASER<span class="brand-text-accent">STUDIO</span></span>
+                            </a>
+                            <p class="footer-desc">
+                                Custom laser-engraved wooden keychains — designed live and crafted on demand. Natural hardwood & pinpoint precision.
+                            </p>
+                            <div class="footer-status-pill">
+                                <span class="status-dot-pulse"></span>
+                                <span>Live Laser Engine: Online</span>
+                            </div>
+                        </div>
+
+                        <div class="footer-links-col">
+                            <h4 class="footer-col-title">Keychain Shapes</h4>
+                            <ul class="footer-links">
+                                <li><a href="#" class="footer-link-shape" data-shape="rectangle">Rectangle Oak (72 × 35 mm)</a></li>
+                                <li><a href="#" class="footer-link-shape" data-shape="circle">Circle Walnut (Ø 50 mm)</a></li>
+                                <li><a href="#" class="footer-link-shape" data-shape="heart">Heart Birch (55 × 50 mm)</a></li>
+                            </ul>
+                        </div>
+
+                        <div class="footer-links-col">
+                            <h4 class="footer-col-title">Engraving Modes</h4>
+                            <ul class="footer-links">
+                                <li><a href="#" class="footer-link-mode" data-mode="text">Custom Name &amp; Message</a></li>
+                                <li><a href="#" class="footer-link-mode" data-mode="image">Photo &amp; Logo Vector Cut</a></li>
+                                <li><a href="#" class="footer-link-mode" data-mode="text">Pet &amp; Couple Engravings</a></li>
+                            </ul>
+                        </div>
+
+                        <div class="footer-links-col">
+                            <h4 class="footer-col-title">Quality Assurance</h4>
+                            <div class="footer-trust-badges">
+                                <div class="trust-badge-item">
+                                    <span class="trust-badge-icon">🪵</span>
+                                    <span>100% Natural Hardwood</span>
+                                </div>
+                                <div class="trust-badge-item">
+                                    <span class="trust-badge-icon">⚡</span>
+                                    <span>Instant On-Site Engraving</span>
+                                </div>
+                                <div class="trust-badge-item">
+                                    <span class="trust-badge-icon">🛡️</span>
+                                    <span>Inspected &amp; Hand-Finished</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="footer-bottom">
+                        <p>© 2026 Laser Studio. All rights reserved.</p>
+                        <div class="footer-bottom-meta">
+                            <span>Precision Laser Engraving</span>
+                            <span class="meta-dot">•</span>
+                            <span>Live Queue Tracker</span>
+                        </div>
+                    </div>
                 </div>
-
-                <h1 class="welcome-title">
-                    MAKE IT<br><span class="title-accent">YOURS.</span>
-                </h1>
-
-                <p class="welcome-sub">
-                    Custom wooden keychains — laser engraved on the spot. Pick your shape & custom design.
-                </p>
-
-                <div class="welcome-actions">
-                    <button class="btn btn-primary" id="btn-start">
-                        Start creating
-                        <svg class="btn-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none"
-                            stroke="currentColor" stroke-width="2">
-                            <line x1="5" y1="12" x2="19" y2="12" />
-                            <polyline points="12,5 19,12 12,19" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div class="hero-trust-bar">
-                    <span class="trust-item">
-                        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
-                            stroke-width="1.8">
-                            <rect x="2" y="2" width="12" height="12" rx="2" />
-                            <circle cx="5" cy="8" r="1.2" fill="currentColor" />
-                        </svg>
-                        Rectangle · Circle · Heart
-                    </span>
-                    <span class="trust-sep">•</span>
-                    <span class="trust-item">
-                        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
-                            stroke-width="1.8">
-                            <path d="M8 2v12M2 8h14" />
-                        </svg>
-                        100% Natural Hardwood
-                    </span>
-                    <span class="trust-sep">•</span>
-                    <span class="trust-item">
-                        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
-                            stroke-width="1.8">
-                            <polygon points="8,2 14,14 2,14" />
-                        </svg>
-                        Live Laser Queue
-                    </span>
-                </div>
-            </div>
-
-            <!-- Art-Directed Floating Keychain Samples (Interactive Showcase) -->
-            <div class="hero-samples-composition">
-
-                <!-- Sample 1: Top-Left Rectangle (Real Portrait Photo Engraved Wood) -->
-                <div class="hero-sample-item sample-pos-tl" data-shape="rectangle" role="button" tabindex="0"
-                    title="Click to customize Rectangle keychain">
-                    <div class="sample-badge">Rectangle · Photo Engraved</div>
-                    <img src="assets/keychains/wood-rect-photo.png"
-                        alt="Rectangle Oak Wood Photo Laser Engraved Keychain" class="sample-png sample-wood" />
-                </div>
-
-                <!-- Sample 2: Top-Right Circle (Pet Portrait Engraved Walnut Wood) -->
-                <div class="hero-sample-item sample-pos-tr" data-shape="circle" role="button" tabindex="0"
-                    title="Click to customize Circle keychain">
-                    <div class="sample-badge">Circle · Pet Portrait</div>
-                    <img src="assets/keychains/wood-circle-photo.png"
-                        alt="Circle Walnut Wood Pet Photo Laser Engraved Keychain" class="sample-png sample-wood" />
-                </div>
-
-                <!-- Sample 3: Bottom-Left Heart (Couple Photo Engraved Birch Wood) -->
-                <div class="hero-sample-item sample-pos-bl" data-shape="heart" role="button" tabindex="0"
-                    title="Click to customize Heart keychain">
-                    <div class="sample-badge">Heart · Couple Photo</div>
-                    <img src="assets/keychains/wood-heart-photo.png"
-                        alt="Heart Birch Wood Photo Laser Engraved Keychain" class="sample-png sample-wood" />
-                </div>
-
-                <!-- Sample 4: Bottom-Right Rectangle (Typography Engraved Oak Wood) -->
-                <div class="hero-sample-item sample-pos-br" data-shape="rectangle" role="button" tabindex="0"
-                    title="Click to customize Rectangle keychain">
-                    <div class="sample-badge">Rectangle · Custom Text</div>
-                    <img src="assets/keychains/wood-rect-text.png"
-                        alt="Rectangle Oak Wood Text Laser Engraved Keychain - INVENGIC"
-                        class="sample-png sample-wood" />
-                </div>
-
-                <!-- Sample 5: Mid-Left Accent (Heart · Natural Oak Text) -->
-                <div class="hero-sample-item sample-pos-ml" data-shape="heart" role="button" tabindex="0"
-                    title="Click to customize Heart keychain">
-                    <div class="sample-badge">Heart · Natural Oak Text</div>
-                    <img src="assets/keychains/keychain-oak-heart.png"
-                        alt="Heart Natural Oak Wood Laser Engraved Keychain - FOREVER" class="sample-png sample-wood" />
-                </div>
-
-                <!-- Sample 6: Mid-Right Accent (Circle · Walnut Engraved Crest) -->
-                <div class="hero-sample-item sample-pos-mr" data-shape="circle" role="button" tabindex="0"
-                    title="Click to customize Circle keychain">
-                    <div class="sample-badge">Circle · Walnut Crest</div>
-                    <img src="assets/keychains/keychain-wood-circle.png"
-                        alt="Circle Walnut Wood Laser Engraved Keychain - A · S" class="sample-png sample-wood" />
-                </div>
-
-            </div>
+            </footer>
         </div>
     </section>
 

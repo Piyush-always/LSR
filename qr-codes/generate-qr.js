@@ -21,16 +21,12 @@ const fs = require('fs');
 // =====================================================================
 const TARGETS = [
     {
-        name: 'laser-inv',
-        url:  'https://laser-inv.web.app',
+        name: 'laser-invengic',
+        url:  'https://laser.invengic.in',
     },
     {
-        name: 'create-mytag',
-        url:  'https://create-mytag.invengic.in',
-    },
-    {
-        name: 'invengic',
-        url:  'https://invengic.in',
+        name: 'invengic-app',
+        url:  'https://invengic.web.app',
     },
 ];
 
