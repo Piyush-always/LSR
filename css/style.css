@@ -383,7 +383,41 @@ body[data-screen="welcome"] .home-btn {
 }
 
 .welcome-actions {
-    margin-bottom: 28px;
+    margin-bottom: 24px;
+}
+
+.hero-scroll-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    color: var(--text-dim);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-decoration: none;
+    padding: 6px 14px;
+    border-radius: 100px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.hero-scroll-hint:hover {
+    color: #4f46e5;
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(99, 102, 241, 0.3);
+    transform: translateY(2px);
+}
+
+.hero-scroll-hint svg {
+    animation: bounceDown 2s infinite ease-in-out;
+}
+
+@keyframes bounceDown {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(4px); }
 }
 
 .hero-trust-bar {
@@ -508,42 +542,42 @@ body[data-screen="welcome"] .home-btn {
 
 /* Positioning & Motion keyframes */
 .sample-pos-tl {
-    top: 7%;
+    top: 11%;
     left: 4%;
     transform: translate3d(var(--px, 0px), var(--py, 0px), 0) rotate(-4deg);
     animation: sampleFloat1 7s ease-in-out infinite alternate;
 }
 
 .sample-pos-tr {
-    top: 6%;
+    top: 10%;
     right: 4%;
     transform: translate3d(var(--px, 0px), var(--py, 0px), 0) rotate(4deg);
     animation: sampleFloat2 8s ease-in-out infinite alternate;
 }
 
 .sample-pos-bl {
-    bottom: 8%;
+    bottom: 9%;
     left: 5%;
     transform: translate3d(var(--px, 0px), var(--py, 0px), 0) rotate(-3deg);
     animation: sampleFloat3 7.5s ease-in-out infinite alternate;
 }
 
 .sample-pos-br {
-    bottom: 7%;
+    bottom: 8%;
     right: 5%;
     transform: translate3d(var(--px, 0px), var(--py, 0px), 0) rotate(3deg);
     animation: sampleFloat1 9s ease-in-out infinite alternate;
 }
 
 .sample-pos-ml {
-    top: 44%;
+    top: 48%;
     left: 3%;
     transform: translate3d(var(--px, 0px), var(--py, 0px), 0) rotate(2deg);
     animation: sampleFloat2 8.5s ease-in-out infinite alternate;
 }
 
 .sample-pos-mr {
-    top: 42%;
+    top: 46%;
     right: 3%;
     transform: translate3d(var(--px, 0px), var(--py, 0px), 0) rotate(-2deg);
     animation: sampleFloat4 7.5s ease-in-out infinite alternate;

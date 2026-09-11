@@ -1,32 +1,62 @@
 {
-  "hosting": {
-    "site": "invengic",
-    "public": ".",
-    "ignore": [
-      "firebase.json",
-      ".*",
-      ".git/**",
-      ".firebase/**",
-      "node_modules/**",
-      "functions/**",
-      "printer-agent/**",
-      "qr-codes/**",
-      "printer-agent-1.zip",
-      "README.md"
-    ],
-    "headers": [
-      {
-        "source": "**/*.@(html|js|css)",
-        "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
-      }
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
-  },
+  "hosting": [
+    {
+      "target": "invengic",
+      "public": ".",
+      "ignore": [
+        "firebase.json",
+        ".*",
+        ".git/**",
+        ".firebase/**",
+        "node_modules/**",
+        "functions/**",
+        "printer-agent/**",
+        "qr-codes/**",
+        "printer-agent-1.zip",
+        "README.md"
+      ],
+      "headers": [
+        {
+          "source": "**/*.@(html|js|css)",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+        }
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    {
+      "target": "official",
+      "public": ".",
+      "ignore": [
+        "firebase.json",
+        ".*",
+        ".git/**",
+        ".firebase/**",
+        "node_modules/**",
+        "functions/**",
+        "printer-agent/**",
+        "qr-codes/**",
+        "printer-agent-1.zip",
+        "README.md"
+      ],
+      "headers": [
+        {
+          "source": "**/*.@(html|js|css)",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+        }
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    }
+  ],
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
