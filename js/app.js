@@ -57,6 +57,24 @@ const emojiPanel = document.getElementById('emoji-panel');
 const paymentTitle = document.getElementById('payment-title');
 const paymentSub = document.getElementById('payment-sub');
 
+// ===== CART & TOAST DOM ELEMENTS =====
+const cartBtn = document.getElementById('cart-btn');
+const cartBadge = document.getElementById('cart-badge');
+const cartDrawer = document.getElementById('cart-drawer');
+const cartOverlay = document.getElementById('cart-overlay');
+const cartCloseBtn = document.getElementById('cart-close-btn');
+const cartItemsContainer = document.getElementById('cart-items-container');
+const cartDrawerCount = document.getElementById('cart-drawer-count');
+const cartTotalQty = document.getElementById('cart-total-qty');
+const cartSubtotalAmount = document.getElementById('cart-subtotal-amount');
+const cartCheckoutAmount = document.getElementById('cart-checkout-amount');
+const cartCheckoutBtn = document.getElementById('cart-checkout-btn');
+const cartContinueBtn = document.getElementById('cart-continue-btn');
+const cartLimitBanner = document.getElementById('cart-limit-banner');
+const btnAddCartText = document.getElementById('btn-add-cart-text');
+const btnAddCartImage = document.getElementById('btn-add-cart-image');
+const toastContainer = document.getElementById('toast-container');
+
 // ===== PHONE CHECKOUT MODAL ELEMENTS =====
 const phoneModal = document.getElementById('phone-modal');
 const modalPhoneInput = document.getElementById('modal-phone-input');
@@ -88,7 +106,9 @@ function openPhoneModal(mode) {
 function closePhoneModal() {
     if (phoneModal) phoneModal.hidden = true;
     if (btnPay) btnPay.disabled = nameInput.value.trim().length === 0;
+    if (btnAddCartText) btnAddCartText.disabled = nameInput.value.trim().length === 0;
     if (btnPayImage) btnPayImage.disabled = !imageProcessor.hasImage;
+    if (btnAddCartImage) btnAddCartImage.disabled = !imageProcessor.hasImage;
 }
 
 if (phoneModalClose) phoneModalClose.addEventListener('click', closePhoneModal);
@@ -210,6 +230,7 @@ function showScreen(screenName) {
         history.pushState({ screen: screenName }, '', '#' + screenName);
     }
 }
+window.showScreen = showScreen;
 
 function showScreenInternal(screenName) {
     const targetScreen = screens[screenName] || screens.welcome;
@@ -218,6 +239,11 @@ function showScreenInternal(screenName) {
     
     targetScreen.classList.add('active');
     document.body.dataset.screen = screenName;
+
+    // Reset window scroll position to top instantly when transitioning screens
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
 
     if (screenName === 'image') {
         setDesignMode('image');
@@ -308,6 +334,10 @@ function selectShape(shapeId) {
     document.querySelectorAll('.shape-pill').forEach(p => {
         p.classList.toggle('selected', p.dataset.shapeId === shapeId);
     });
+    if (customTextPos) {
+        const shape = window.getShape(shapeId);
+        customTextPos = getConstrainedTextPos(customTextPos.x, customTextPos.y, shape);
+    }
     updateShapePreviews();
 }
 
@@ -358,24 +388,50 @@ document.querySelectorAll('.footer-link-mode').forEach(link => {
 });
 
 const heroCanvas = document.getElementById('hero-canvas');
-if (heroCanvas && window.matchMedia('(min-width: 900px)').matches) {
-    heroCanvas.addEventListener('mousemove', (e) => {
-        const rect = heroCanvas.getBoundingClientRect();
-        const offsetX = (e.clientX - rect.left - rect.width / 2) * 0.015;
-        const offsetY = (e.clientY - rect.top - rect.height / 2) * 0.015;
+
+if (heroCanvas && heroSamples.length > 0 && window.matchMedia('(min-width: 900px)').matches) {
+    let mouseX = 0, mouseY = 0;
+    let currentX = 0, currentY = 0;
+    let isHovered = false;
+
+    function updateParallax() {
+        currentX += (mouseX - currentX) * 0.05;
+        currentY += (mouseY - currentY) * 0.05;
 
         heroSamples.forEach((sample, i) => {
-            const factor = (i % 2 === 0 ? 1 : -1) * (0.5 + (i * 0.15));
-            sample.style.setProperty('--px', `${(offsetX * factor).toFixed(1)}px`);
-            sample.style.setProperty('--py', `${(offsetY * factor).toFixed(1)}px`);
+            const depth = sample.classList.contains('depth-foreground') ? 1.5 :
+                          sample.classList.contains('depth-background') ? 0.6 : 1.0;
+            const dirX = (i % 2 === 0 ? 1 : -1) * depth;
+            const dirY = (i % 3 === 0 ? 1 : -1) * depth;
+
+            const px = (currentX * dirX * 22).toFixed(2);
+            const py = (currentY * dirY * 22).toFixed(2);
+
+            sample.style.setProperty('--px', `${px}px`);
+            sample.style.setProperty('--py', `${py}px`);
         });
+
+        if (isHovered || Math.abs(currentX - mouseX) > 0.0005 || Math.abs(currentY - mouseY) > 0.0005) {
+            requestAnimationFrame(updateParallax);
+        }
+    }
+
+    heroCanvas.addEventListener('mousemove', (e) => {
+        const rect = heroCanvas.getBoundingClientRect();
+        mouseX = (e.clientX - rect.left - rect.width / 2) / (rect.width / 2);
+        mouseY = (e.clientY - rect.top - rect.height / 2) / (rect.height / 2);
+
+        if (!isHovered) {
+            isHovered = true;
+            requestAnimationFrame(updateParallax);
+        }
     });
 
     heroCanvas.addEventListener('mouseleave', () => {
-        heroSamples.forEach(sample => {
-            sample.style.removeProperty('--px');
-            sample.style.removeProperty('--py');
-        });
+        isHovered = false;
+        mouseX = 0;
+        mouseY = 0;
+        requestAnimationFrame(updateParallax);
     });
 }
 
@@ -612,6 +668,24 @@ function updateShapePreviews() {
     }
 }
 
+// ===== CUSTOM MOVEABLE TEXT DRAG & DROP POSITIONING =====
+let customTextPos = null; // { x: number, y: number } or null for default center
+
+function getConstrainedTextPos(x, y, shape) {
+    const bounds = (shape && shape.textArea && shape.textArea.dragBounds) || {
+        minX: 10, maxX: (shape ? shape.width : 50) - 10,
+        minY: 6, maxY: (shape ? shape.height : 35) - 6
+    };
+    const clampedX = Math.max(bounds.minX, Math.min(bounds.maxX, x));
+    const clampedY = Math.max(bounds.minY, Math.min(bounds.maxY, y));
+    return { x: parseFloat(clampedX.toFixed(2)), y: parseFloat(clampedY.toFixed(2)) };
+}
+
+function resetTextPosition() {
+    customTextPos = null;
+    renderKeychainText();
+}
+
 // ===== LIVE KEYCHAIN PREVIEW (text) =====
 function renderKeychainText() {
     const textEl = document.getElementById('keychain-text');
@@ -627,15 +701,25 @@ function renderKeychainText() {
     const fontScale = shape.textArea.fontScale || 1.0;
     const baseFontSize = font.fixedCapHeight * fontScale;
     textEl.setAttribute('font-size', baseFontSize);
-    textEl.setAttribute('x', shape.textArea.x);
-    textEl.setAttribute('y', shape.textArea.y);
+
+    let targetX = shape.textArea.x;
+    let targetY = shape.textArea.y;
+    if (customTextPos) {
+        const constrained = getConstrainedTextPos(customTextPos.x, customTextPos.y, shape);
+        targetX = constrained.x;
+        targetY = constrained.y;
+    }
+
+    textEl.setAttribute('x', targetX);
+    textEl.setAttribute('y', targetY);
     textEl.setAttribute('text-anchor', shape.textArea.anchor);
     textEl.setAttribute('dominant-baseline', shape.textArea.baseline);
 
     const maxW = shape.textArea.maxTextWidth || 50;
 
-    // Evaluate payment button status
+    // Evaluate payment & add-to-cart button status
     if (btnPay) btnPay.disabled = raw.length === 0;
+    if (btnAddCartText) btnAddCartText.disabled = raw.length === 0;
 
     // Measure rendered text width and scale down if it exceeds shape boundary
     try {
@@ -653,6 +737,78 @@ function renderKeychainText() {
     }
 }
 
+// SVG Interactive Drag Event Listeners
+(function initTextDragEvents() {
+    const textEl = document.getElementById('keychain-text');
+    const svgEl = document.getElementById('keychain-svg');
+    if (!textEl || !svgEl) return;
+
+    let isDraggingText = false;
+    let dragOffsetSvg = { x: 0, y: 0 };
+
+    function getSvgCoordinates(e) {
+        const pt = svgEl.createSVGPoint();
+        const clientX = (e.touches && e.touches.length > 0) ? e.touches[0].clientX : e.clientX;
+        const clientY = (e.touches && e.touches.length > 0) ? e.touches[0].clientY : e.clientY;
+        pt.x = clientX;
+        pt.y = clientY;
+        const ctm = svgEl.getScreenCTM();
+        if (!ctm) return { x: 0, y: 0 };
+        return pt.matrixTransform(ctm.inverse());
+    }
+
+    function startDrag(e) {
+        if (e.target !== textEl) return;
+        isDraggingText = true;
+        textEl.classList.add('dragging');
+        
+        const shape = window.getShape(selectedShapeId);
+        const currentX = customTextPos ? customTextPos.x : shape.textArea.x;
+        const currentY = customTextPos ? customTextPos.y : shape.textArea.y;
+        const mouseSvg = getSvgCoordinates(e);
+
+        dragOffsetSvg = {
+            x: mouseSvg.x - currentX,
+            y: mouseSvg.y - currentY
+        };
+
+        e.preventDefault();
+    }
+
+    function doDrag(e) {
+        if (!isDraggingText) return;
+        e.preventDefault();
+
+        const shape = window.getShape(selectedShapeId);
+        const mouseSvg = getSvgCoordinates(e);
+        const targetX = mouseSvg.x - dragOffsetSvg.x;
+        const targetY = mouseSvg.y - dragOffsetSvg.y;
+
+        customTextPos = getConstrainedTextPos(targetX, targetY, shape);
+        renderKeychainText();
+    }
+
+    function endDrag() {
+        if (!isDraggingText) return;
+        isDraggingText = false;
+        textEl.classList.remove('dragging');
+    }
+
+    textEl.addEventListener('mousedown', startDrag);
+    window.addEventListener('mousemove', doDrag);
+    window.addEventListener('mouseup', endDrag);
+
+    textEl.addEventListener('touchstart', startDrag, { passive: false });
+    window.addEventListener('touchmove', doDrag, { passive: false });
+    window.addEventListener('touchend', endDrag);
+    window.addEventListener('touchcancel', endDrag);
+
+    const btnCenter = document.getElementById('btn-center-text');
+    if (btnCenter) {
+        btnCenter.addEventListener('click', resetTextPosition);
+    }
+})();
+
 function updateCharCount() {
     charCurrent.textContent = Array.from(nameInput.value).length;
 }
@@ -665,12 +821,16 @@ nameInput.addEventListener('input', () => {
     updateCharCount();
     renderKeychainText();
     updateFontChipsText();
-    btnPay.disabled = nameInput.value.trim().length === 0;
+    const hasText = nameInput.value.trim().length > 0;
+    if (btnPay) btnPay.disabled = !hasText;
+    if (btnAddCartText) btnAddCartText.disabled = !hasText;
 });
 
 function resetTextState() {
     nameInput.value = '';
-    btnPay.disabled = true;
+    customTextPos = null;
+    if (btnPay) btnPay.disabled = true;
+    if (btnAddCartText) btnAddCartText.disabled = true;
     renderKeychainText();
     updateFontChipsText();
     updateCharCount();
@@ -876,6 +1036,7 @@ async function handleImageFile(file) {
     imgInvert.checked = imageProcessor.invert;
 
     btnPayImage.disabled = false;
+    if (btnAddCartImage) btnAddCartImage.disabled = false;
 
     updateCoverageWarning();
 }
@@ -1011,6 +1172,7 @@ function resetImageState() {
     removeImage.hidden = true;
 
     btnPayImage.disabled = true;
+    if (btnAddCartImage) btnAddCartImage.disabled = true;
 }
 
 // Upload the original + processed bitmaps to Storage. Returns their paths.
@@ -1036,14 +1198,12 @@ async function uploadImageBlobs() {
 // ===== PAYMENT FLOW =====
 btnPay.addEventListener('click', () => {
     if (nameInput.value.trim().length === 0) return;
-    btnPay.disabled = true;
-    openPhoneModal('text');
+    handleAddToCart('text');
 });
 
 btnPayImage.addEventListener('click', () => {
     if (!imageProcessor.hasImage) return;
-    btnPayImage.disabled = true;
-    openPhoneModal('image');
+    handleAddToCart('image');
 });
 
 function setPaymentMessage(title, sub) {
@@ -1071,7 +1231,24 @@ async function initiatePayment(mode, userPhone) {
         const phone_number = rawPhone;
         const phone_e164 = rawPhone ? ('91' + rawPhone) : '';
 
-        if (mode === 'image') {
+        const cartItems = (window.InvengicCart && window.InvengicCart.getItems()) || [];
+        const totalCartQty = (window.InvengicCart && window.InvengicCart.getTotalCount()) || 0;
+        const totalAmount = (window.InvengicCart && window.InvengicCart.getSubtotal()) || 1;
+
+        if (mode === 'cart' || (cartItems.length > 0 && mode !== 'single_direct')) {
+            setPaymentMessage(`Preparing ${totalCartQty} keychain order…`, 'Packaging custom designs for checkout.');
+
+            payload = {
+                mode: 'cart',
+                items: cartItems,
+                totalQuantity: totalCartQty,
+                totalAmount: totalAmount,
+                machineId: getMachineId(),
+                phone_number,
+                phone_e164
+            };
+            displayName = `${totalCartQty} Custom Keychain${totalCartQty > 1 ? 's' : ''}`;
+        } else if (mode === 'image') {
             setPaymentMessage('Processing your image…', 'Preparing design.');
             let printImageBase64 = null;
             try {
@@ -1095,7 +1272,16 @@ async function initiatePayment(mode, userPhone) {
             displayName = 'your image';
         } else {
             const name = nameInput.value.trim();
-            payload = { mode: 'text', name, fontId: selectedFontId, shape: selectedShapeId, machineId: getMachineId(), phone_number, phone_e164 };
+            payload = {
+                mode: 'text',
+                name,
+                fontId: selectedFontId,
+                shape: selectedShapeId,
+                textPos: customTextPos ? { x: customTextPos.x, y: customTextPos.y } : null,
+                machineId: getMachineId(),
+                phone_number,
+                phone_e164
+            };
             displayName = name;
         }
 
@@ -1184,7 +1370,7 @@ function openRazorpayCheckout({ displayName, mode, payload, orderId }) {
     if (orderId && !orderId.startsWith('order_live_')) {
         options.order_id = orderId;
     } else {
-        options.amount = 100; // ₹1.00 = 100 paise
+        options.amount = (payload.totalAmount || 1) * 100; // Amount in paise (₹1 per keychain)
         options.currency = 'INR';
     }
 
@@ -1226,6 +1412,10 @@ function handleOrderError(error, mode) {
 
 // Optimistic UI: show the success screen immediately, verify in the background.
 function handlePaymentSuccess(response, firestoreId, displayName, mode) {
+    if (window.InvengicCart) {
+        window.InvengicCart.clearCart();
+    }
+
     const payload = {
         razorpay_order_id: response.razorpay_order_id,
         razorpay_payment_id: response.razorpay_payment_id,
@@ -1587,6 +1777,382 @@ function checkRedirectPayment() {
     return false;
 }
 
+// ===== TESTIMONIAL SCROLL OBSERVER =====
+function initTestimonialObserver() {
+    const testimonialEl = document.getElementById('testimonial-section');
+    if (!testimonialEl) return;
+
+    if ('IntersectionObserver' in window) {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    testimonialEl.classList.add('in-view');
+                    observer.unobserve(testimonialEl);
+                }
+            });
+        }, { threshold: 0.15 });
+
+        observer.observe(testimonialEl);
+    } else {
+        testimonialEl.classList.add('in-view');
+    }
+}
+
+// ===== TOAST NOTIFICATIONS =====
+function showToast(message, type = 'success') {
+    if (!toastContainer) return;
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    let icon = '✓';
+    if (type === 'warning') icon = '⚠️';
+    if (type === 'error') icon = '✕';
+    toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+    toastContainer.appendChild(toast);
+    
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.remove();
+        }
+    }, 4000);
+}
+
+// ===== CART DRAWER & CONTROLLER =====
+function openCartDrawer() {
+    renderCartDrawer();
+    if (cartDrawer) {
+        cartDrawer.hidden = false;
+        cartDrawer.classList.add('active');
+    }
+    if (cartOverlay) {
+        cartOverlay.hidden = false;
+        cartOverlay.classList.add('active');
+    }
+}
+
+function closeCartDrawer() {
+    if (cartDrawer) {
+        cartDrawer.classList.remove('active');
+        setTimeout(() => { cartDrawer.hidden = true; }, 350);
+    }
+    if (cartOverlay) {
+        cartOverlay.classList.remove('active');
+        setTimeout(() => { cartOverlay.hidden = true; }, 350);
+    }
+}
+
+function updateCartBadge() {
+    if (!window.InvengicCart) return;
+    const totalCount = window.InvengicCart.getTotalCount();
+    if (cartBadge) {
+        if (totalCount > 0) {
+            cartBadge.textContent = totalCount;
+            cartBadge.hidden = false;
+        } else {
+            cartBadge.hidden = true;
+        }
+    }
+}
+
+function updateAddToCartButtonsLabel() {
+    const isEditing = window.InvengicCart && window.InvengicCart.getEditingItemId();
+    const label = isEditing ? '✓ Update Item' : '🛒 Add to Cart';
+    if (btnAddCartText) btnAddCartText.innerHTML = label;
+    if (btnAddCartImage) btnAddCartImage.innerHTML = label;
+}
+
+function renderCartDrawer() {
+    if (!window.InvengicCart || !cartItemsContainer) return;
+    const items = window.InvengicCart.getItems();
+    const totalCount = window.InvengicCart.getTotalCount();
+    const subtotal = window.InvengicCart.getSubtotal();
+
+    if (cartDrawerCount) cartDrawerCount.textContent = `(${totalCount} item${totalCount === 1 ? '' : 's'})`;
+    if (cartTotalQty) cartTotalQty.textContent = totalCount;
+    if (cartSubtotalAmount) cartSubtotalAmount.textContent = subtotal;
+    if (cartCheckoutAmount) cartCheckoutAmount.textContent = subtotal;
+
+    if (cartLimitBanner) {
+        cartLimitBanner.hidden = totalCount < 20;
+    }
+
+    if (cartCheckoutBtn) {
+        cartCheckoutBtn.disabled = totalCount === 0;
+    }
+
+    if (items.length === 0) {
+        cartItemsContainer.innerHTML = `
+            <div class="cart-empty-state">
+                <div class="cart-empty-icon">🛒</div>
+                <h4>YOUR CART IS EMPTY</h4>
+                <p>Customize keychains and add them to your cart!</p>
+                <button type="button" class="btn btn-primary" onclick="closeCartDrawer(); showScreen('create');">
+                    Start Creating
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    cartItemsContainer.innerHTML = '';
+
+    items.forEach((item) => {
+        const shapeObj = window.getShape ? window.getShape(item.shapeId) : null;
+        const shapeTitle = shapeObj ? shapeObj.title : (item.shapeId || 'Rectangle');
+        const fontObj = item.fontId && window.KEYCHAIN_FONTS ? window.KEYCHAIN_FONTS[item.fontId] : null;
+
+        let thumbMarkup = '';
+        if (item.mode === 'image' && item.thumbUrl) {
+            thumbMarkup = `<img src="${item.thumbUrl}" alt="Custom photo preview" class="cart-item-thumb" />`;
+        } else {
+            thumbMarkup = `
+                <svg viewBox="0 0 72 35" class="cart-item-thumb">
+                    <rect x="2" y="2" width="68" height="31" rx="4" fill="none" stroke="#6366f1" stroke-width="2.5" />
+                    <text x="36" y="20" font-family="${fontObj ? fontObj.family : 'Inter'}" font-size="10" text-anchor="middle" dominant-baseline="middle" fill="#0f172a" font-weight="bold">
+                        ${(item.name || 'CUSTOM').slice(0, 7)}
+                    </text>
+                </svg>
+            `;
+        }
+
+        const itemCard = document.createElement('div');
+        itemCard.className = 'cart-item-card';
+        itemCard.dataset.id = item.id;
+        itemCard.innerHTML = `
+            <div class="cart-item-thumb-wrap">
+                ${thumbMarkup}
+            </div>
+            <div class="cart-item-info">
+                <div class="cart-item-top">
+                    <div>
+                        <div class="cart-item-title">${item.mode === 'image' ? '📷 Custom Logo / Image' : item.name}</div>
+                        <div class="cart-item-details">
+                            <span>Shape: <strong>${shapeTitle}</strong></span>
+                            ${item.mode === 'text' && fontObj ? `<span>Font: <strong>${fontObj.label}</strong></span>` : ''}
+                            <span class="cart-item-badge">Laser Engraved</span>
+                        </div>
+                    </div>
+                    <div class="cart-item-price">₹${item.quantity * item.unitPrice}</div>
+                </div>
+                <div class="cart-item-bottom">
+                    <div class="cart-qty-control">
+                        <button type="button" class="cart-qty-btn btn-qty-minus" data-id="${item.id}" aria-label="Decrease quantity">−</button>
+                        <span class="cart-qty-num">${item.quantity}</span>
+                        <button type="button" class="cart-qty-btn btn-qty-plus" data-id="${item.id}" ${totalCount >= 20 ? 'disabled' : ''} aria-label="Increase quantity">+</button>
+                    </div>
+                    <div class="cart-item-actions">
+                        <button type="button" class="cart-action-btn btn-edit-item" data-id="${item.id}">Edit</button>
+                        <button type="button" class="cart-action-btn btn-remove btn-remove-item" data-id="${item.id}">Remove</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        cartItemsContainer.appendChild(itemCard);
+    });
+
+    // Item Action Listeners
+    cartItemsContainer.querySelectorAll('.btn-qty-minus').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.currentTarget.dataset.id;
+            const item = items.find(i => i.id === id);
+            if (item) {
+                if (item.quantity > 1) {
+                    window.InvengicCart.updateQuantity(id, item.quantity - 1);
+                } else {
+                    if (confirm(`Remove "${item.name}" from cart?`)) {
+                        window.InvengicCart.removeItem(id);
+                        showToast('Item removed from cart', 'warning');
+                    }
+                }
+            }
+        });
+    });
+
+    cartItemsContainer.querySelectorAll('.btn-qty-plus').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.currentTarget.dataset.id;
+            const item = items.find(i => i.id === id);
+            if (item) {
+                if (!window.InvengicCart.canAddQuantity(1)) {
+                    showToast('⚠️ Maximum 20 keychains limit reached!', 'warning');
+                    return;
+                }
+                window.InvengicCart.updateQuantity(id, item.quantity + 1);
+            }
+        });
+    });
+
+    cartItemsContainer.querySelectorAll('.btn-remove-item').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.currentTarget.dataset.id;
+            window.InvengicCart.removeItem(id);
+            showToast('Item removed from cart', 'warning');
+        });
+    });
+
+    cartItemsContainer.querySelectorAll('.btn-edit-item').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.currentTarget.dataset.id;
+            editCartItem(id);
+        });
+    });
+}
+
+function editCartItem(itemId) {
+    if (!window.InvengicCart) return;
+    const item = window.InvengicCart.getItem(itemId);
+    if (!item) return;
+
+    window.InvengicCart.setEditingItem(itemId);
+    closeCartDrawer();
+    showScreen('create');
+
+    if (item.shapeId) {
+        const shapeCard = document.querySelector(`.shape-card[data-shape-id="${item.shapeId}"]`);
+        if (shapeCard) shapeCard.click();
+    }
+
+    if (item.mode === 'text') {
+        if (typeName) typeName.click();
+        if (nameInput) {
+            nameInput.value = item.name || '';
+            updateCharCount();
+        }
+        if (item.fontId && window.KEYCHAIN_FONTS[item.fontId]) {
+            selectFont(item.fontId);
+        }
+        if (item.textPos) {
+            customTextPos = { ...item.textPos };
+        } else {
+            customTextPos = null;
+        }
+        renderKeychainText();
+        updateFontChipsText();
+    } else if (item.mode === 'image') {
+        if (typeImage) typeImage.click();
+        if (item.imageProcessorState && item.imageProcessorState.canvasDataUrl) {
+            const img = new Image();
+            img.onload = () => {
+                imageProcessor.width = img.width;
+                imageProcessor.height = img.height;
+                imageProcessor.canvas.width = img.width;
+                imageProcessor.canvas.height = img.height;
+                const ctx = imageProcessor.canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                positionImageCanvas();
+                renderImageCanvas();
+                imgKeychain.classList.add('has-image');
+                removeImage.hidden = false;
+                imgControls.hidden = false;
+                btnPayImage.disabled = false;
+                if (btnAddCartImage) btnAddCartImage.disabled = false;
+            };
+            img.src = item.imageProcessorState.canvasDataUrl;
+        }
+    }
+
+    updateAddToCartButtonsLabel();
+    showToast('Editing cart item design', 'warning');
+}
+
+function handleAddToCart(mode) {
+    if (!window.InvengicCart) return;
+
+    const editingId = window.InvengicCart.getEditingItemId();
+    if (!editingId && !window.InvengicCart.canAddQuantity(1)) {
+        showToast('⚠️ Maximum 20 keychains limit reached per order!', 'warning');
+        if (cartLimitBanner) cartLimitBanner.hidden = false;
+        openCartDrawer();
+        return;
+    }
+
+    let spec = { mode };
+
+    if (mode === 'text') {
+        const textVal = nameInput.value.trim();
+        if (!textVal) {
+            showToast('Please enter text for your keychain', 'warning');
+            return;
+        }
+        spec.name = textVal;
+        spec.shapeId = selectedShapeId;
+        spec.fontId = selectedFontId;
+        spec.textPos = customTextPos ? { ...customTextPos } : null;
+    } else if (mode === 'image') {
+        if (!imageProcessor.hasImage) {
+            showToast('Please upload an image or take a photo', 'warning');
+            return;
+        }
+        spec.name = 'Custom Photo / Logo';
+        spec.shapeId = selectedShapeId;
+        spec.imageProcessorState = {
+            threshold: imageProcessor.threshold,
+            invert: imageProcessor.invert,
+            canvasDataUrl: imageProcessor.canvas ? imageProcessor.canvas.toDataURL('image/png') : null
+        };
+        spec.thumbUrl = imageProcessor.canvas ? imageProcessor.canvas.toDataURL('image/png') : null;
+    }
+
+    if (editingId) {
+        spec.id = editingId;
+    }
+
+    window.InvengicCart.addItem(spec);
+    
+    if (editingId) {
+        showToast('✓ Cart item updated!', 'success');
+    } else {
+        showToast('✓ Custom keychain added to cart!', 'success');
+    }
+
+    window.InvengicCart.setEditingItem(null);
+    updateAddToCartButtonsLabel();
+
+    if (mode === 'text' && !editingId) {
+        resetTextState();
+    }
+
+    openCartDrawer();
+}
+
+// Init Cart Event Listeners
+if (cartBtn) cartBtn.addEventListener('click', openCartDrawer);
+if (cartCloseBtn) cartCloseBtn.addEventListener('click', closeCartDrawer);
+if (cartOverlay) cartOverlay.addEventListener('click', closeCartDrawer);
+if (cartContinueBtn) {
+    cartContinueBtn.addEventListener('click', () => {
+        closeCartDrawer();
+        showScreen('create');
+    });
+}
+
+if (cartCheckoutBtn) {
+    cartCheckoutBtn.addEventListener('click', () => {
+        const count = window.InvengicCart ? window.InvengicCart.getTotalCount() : 0;
+        if (count === 0) {
+            showToast('Your cart is empty!', 'warning');
+            return;
+        }
+        closeCartDrawer();
+        openPhoneModal('cart');
+    });
+}
+
+if (btnAddCartText) {
+    btnAddCartText.addEventListener('click', () => handleAddToCart('text'));
+}
+if (btnAddCartImage) {
+    btnAddCartImage.addEventListener('click', () => handleAddToCart('image'));
+}
+
+if (window.InvengicCart) {
+    window.InvengicCart.subscribe(() => {
+        updateCartBadge();
+        renderCartDrawer();
+    });
+    updateCartBadge();
+}
+
 // ===== INITIAL BOOT =====
 buildFontChips();
 buildEmojiPanel();
@@ -1594,6 +2160,7 @@ renderKeychainText();
 updateCharCount();
 positionImageCanvas();
 resetImageState();
+initTestimonialObserver();
 
 (function bootScreen() {
     if (checkRedirectPayment()) return;

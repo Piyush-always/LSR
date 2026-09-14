@@ -51,10 +51,10 @@ const SETTINGS = {
     keychainHeight: 35,      // mm
     cornerRadius: 4,
     borderInset: 2,
-    holeX: 7,                // hole center X
+    holeX: 8,                // hole center X
     holeY: 17.5,             // hole center Y
     holeRadius: 2.5,
-    textLeft: 14,            // text area left edge
+    textLeft: 15,            // text area left edge
     textRight: 70,           // text area right edge
 
     // Curve flattening
@@ -106,7 +106,7 @@ function isEmoji(char) {
 // =================================================================
 // MAIN ENTRY
 // =================================================================
-async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle') {
+async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle', customX = null, customY = null) {
     const cleanFontId = FONTS[fontId] ? fontId : DEFAULT_FONT_ID;
     const fontMetric = FONTS[cleanFontId];
     const fontSize = fontMetric.fixedCapHeight;
@@ -120,16 +120,20 @@ async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle')
     if (shape === 'circle') {
         // Circle 50x50 mm
         paths.push(circlePolyline(25, 25, 23, SETTINGS.circleSegments));
-        // Hole at (25, 43) in Y-up (7 mm from top)
-        paths.push(circlePolyline(25, 43, SETTINGS.holeRadius, SETTINGS.circleSegments));
-        const textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize * 0.85, 25, 22, 36);
+        // Hole at (25, 42) in Y-up (8 mm from top)
+        paths.push(circlePolyline(25, 42, SETTINGS.holeRadius, SETTINGS.circleSegments));
+        const cx = (customX !== null && customX !== undefined) ? customX : 25;
+        const cy = (customY !== null && customY !== undefined) ? (50 - customY) : 22;
+        const textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize * 0.85, cx, cy, 36);
         paths.push(...textPolylines);
     } else if (shape === 'heart') {
         // Heart 55x50 mm
         paths.push(heartPolyline(27.5, 24, 50, 44));
-        // Hole at (27.5, 43) in Y-up (7 mm from top)
-        paths.push(circlePolyline(27.5, 43, SETTINGS.holeRadius, SETTINGS.circleSegments));
-        const textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize * 0.85, 27.5, 25, 32);
+        // Hole at (27.5, 36.5) in Y-up (13.5 mm from top)
+        paths.push(circlePolyline(27.5, 36.5, SETTINGS.holeRadius, SETTINGS.circleSegments));
+        const cx = (customX !== null && customX !== undefined) ? customX : 27.5;
+        const cy = (customY !== null && customY !== undefined) ? (50 - customY) : 24;
+        const textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize * 0.85, cx, cy, 32);
         paths.push(...textPolylines);
     } else {
         // Rectangle 72x35 mm (Default)
@@ -141,7 +145,9 @@ async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle')
             SETTINGS.cornerRadius
         ));
         paths.push(circlePolyline(SETTINGS.holeX, SETTINGS.keychainHeight - SETTINGS.holeY, SETTINGS.holeRadius, SETTINGS.circleSegments));
-        const textPolylines = buildTextPolylines(cleanName, cleanFontId, fontSize * 1.0, 42, 17.5, 52);
+        const cx = (customX !== null && customX !== undefined) ? customX : 42;
+        const cy = (customY !== null && customY !== undefined) ? (35 - customY) : 17.5;
+        const textPolylines = buildTextPolylines(cleanName, cleanFontId, fontSize * 1.0, cx, cy, 52);
         paths.push(...textPolylines);
     }
 

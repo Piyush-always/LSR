@@ -8,10 +8,10 @@ window.KEYCHAIN_LAYOUT = {
     height: 35,           // mm — physical keychain height
     borderInset: 2,       // mm — engraved border distance from edge
     cornerRadius: 4,      // mm — keychain corner radius
-    holeX: 7,             // mm — hole center X
+    holeX: 8,             // mm — hole center X
     holeY: 17.5,          // mm — hole center Y (vertically centered)
     holeRadius: 2.5,      // mm — engraved hole radius
-    textLeft: 14,         // mm — text area starts after the hole
+    textLeft: 15,         // mm — text area starts after the hole
     textRight: 70,        // mm — text area ends before right border
     maxChars: 20,         // max characters in name input
 };
@@ -33,11 +33,11 @@ window.KEYCHAIN_SHAPES = {
         originY: 7,
         dimLabelX: '72 mm',
         dimLabelY: '35 mm',
-        hole: { cx: 7, cy: 17.5, r: 2.5 },
+        hole: { cx: 8, cy: 17.5, r: 2.5 },
         outlineSvg: '<rect x="2" y="2" width="68" height="31" rx="4" ry="4" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>',
         borderPathD: 'M 2 6 Q 2 2 6 2 H 66 Q 70 2 70 6 V 29 Q 70 33 66 33 H 6 Q 2 33 2 29 Z',
         clipPathD: 'M 2 6 Q 2 2 6 2 H 66 Q 70 2 70 6 V 29 Q 70 33 66 33 H 6 Q 2 33 2 29 Z',
-        holeSvg: '<circle cx="7" cy="17.5" r="2.5" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>',
+        holeSvg: '<circle cx="8" cy="17.5" r="2.5" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>',
         textArea: {
             x: 42,
             y: 17.5,
@@ -45,6 +45,7 @@ window.KEYCHAIN_SHAPES = {
             baseline: 'central',
             fontScale: 1.0,
             maxTextWidth: 52,
+            dragBounds: { minX: 14, maxX: 66, minY: 5, maxY: 30 }
         },
         imageArea: {
             x: 13,
@@ -65,7 +66,7 @@ window.KEYCHAIN_SHAPES = {
         iconSvg: `
             <svg viewBox="0 0 72 35" width="44" height="22">
                 <rect x="2" y="2" width="68" height="31" rx="4" fill="none" stroke="currentColor" stroke-width="2.2"/>
-                <circle cx="8" cy="17.5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                <circle cx="9" cy="17.5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
             </svg>
         `
     },
@@ -82,11 +83,11 @@ window.KEYCHAIN_SHAPES = {
         originY: 7,
         dimLabelX: 'Ø 50 mm',
         dimLabelY: 'Ø 50 mm',
-        hole: { cx: 25, cy: 7, r: 2.5 },
+        hole: { cx: 25, cy: 8, r: 2.5 },
         outlineSvg: '<circle cx="25" cy="25" r="23" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>',
         borderPathD: 'M 25 2 A 23 23 0 1 1 24.99 2 Z',
         clipPathD: 'M 25 2 A 23 23 0 1 1 24.99 2 Z',
-        holeSvg: '<circle cx="25" cy="7" r="2.5" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>',
+        holeSvg: '<circle cx="25" cy="8" r="2.5" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>',
         textArea: {
             x: 25,
             y: 28,
@@ -94,6 +95,7 @@ window.KEYCHAIN_SHAPES = {
             baseline: 'central',
             fontScale: 0.85,
             maxTextWidth: 36,
+            dragBounds: { minX: 10, maxX: 40, minY: 14, maxY: 42 }
         },
         imageArea: {
             x: 2,
@@ -114,7 +116,7 @@ window.KEYCHAIN_SHAPES = {
         iconSvg: `
             <svg viewBox="0 0 50 50" width="30" height="30">
                 <circle cx="25" cy="25" r="22" fill="none" stroke="currentColor" stroke-width="2.2"/>
-                <circle cx="25" cy="8" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                <circle cx="25" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
             </svg>
         `
     },
@@ -131,18 +133,19 @@ window.KEYCHAIN_SHAPES = {
         originY: 7,
         dimLabelX: '55 mm',
         dimLabelY: '50 mm',
-        hole: { cx: 27.5, cy: 7, r: 2.5 },
+        hole: { cx: 27.5, cy: 13.5, r: 2.5 },
         outlineSvg: '<path d="M 27.5 46 C 14 36 2 26 2 15 C 2 7 8 2 16 2 C 21.5 2 25.5 5.5 27.5 9.5 C 29.5 5.5 33.5 2 39 2 C 47 2 53 7 53 15 C 53 26 41 36 27.5 46 Z" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>',
         borderPathD: 'M 27.5 46 C 14 36 2 26 2 15 C 2 7 8 2 16 2 C 21.5 2 25.5 5.5 27.5 9.5 C 29.5 5.5 33.5 2 39 2 C 47 2 53 7 53 15 C 53 26 41 36 27.5 46 Z',
         clipPathD: 'M 27.5 46 C 14 36 2 26 2 15 C 2 7 8 2 16 2 C 21.5 2 25.5 5.5 27.5 9.5 C 29.5 5.5 33.5 2 39 2 C 47 2 53 7 53 15 C 53 26 41 36 27.5 46 Z',
-        holeSvg: '<circle cx="27.5" cy="7" r="2.5" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>',
+        holeSvg: '<circle cx="27.5" cy="13.5" r="2.5" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>',
         textArea: {
             x: 27.5,
-            y: 25,
+            y: 26,
             anchor: 'middle',
             baseline: 'central',
             fontScale: 0.85,
             maxTextWidth: 32,
+            dragBounds: { minX: 12, maxX: 43, minY: 18, maxY: 38 }
         },
         imageArea: {
             x: 2,
@@ -163,7 +166,7 @@ window.KEYCHAIN_SHAPES = {
         iconSvg: `
             <svg viewBox="0 0 55 50" width="32" height="30">
                 <path d="M 27.5 46 C 14 36 2 26 2 15 C 2 7 8 2 16 2 C 21.5 2 25.5 5.5 27.5 9.5 C 29.5 5.5 33.5 2 39 2 C 47 2 53 7 53 15 C 53 26 41 36 27.5 46 Z" fill="none" stroke="currentColor" stroke-width="2.2"/>
-                <circle cx="27.5" cy="8" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                <circle cx="27.5" cy="14" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
             </svg>
         `
     }

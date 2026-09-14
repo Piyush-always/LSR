@@ -13,7 +13,7 @@ window.KEYCHAIN_SHAPES = {
         `,
         hole: `
             <circle
-                cx="7"
+                cx="8"
                 cy="17.5"
                 r="2.5"
             />
@@ -31,7 +31,7 @@ window.KEYCHAIN_SHAPES = {
         hole: `
             <circle
                 cx="36"
-                cy="4.5"
+                cy="5.5"
                 r="2.5"
             />
         `
@@ -52,7 +52,7 @@ window.KEYCHAIN_SHAPES = {
         hole: `
             <circle
                 cx="36"
-                cy="4"
+                cy="13.5"
                 r="2.5"
             />
         `
