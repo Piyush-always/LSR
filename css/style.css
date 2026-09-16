@@ -79,7 +79,7 @@ body::before {
     top: 0;
     left: 0;
     right: 0;
-    height: 64px;
+    height: 72px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -142,9 +142,9 @@ body::before {
 }
 
 .brand-full-logo-img {
-    height: 52px;
+    height: 60px;
     width: auto;
-    max-width: 320px;
+    max-width: 360px;
     object-fit: contain;
     mix-blend-mode: multiply;
     transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), filter 0.3s ease;
@@ -155,7 +155,7 @@ body::before {
 }
 
 .footer-logo-img {
-    height: 54px;
+    height: 64px;
     filter: invert(1) brightness(1.25);
     mix-blend-mode: screen;
 }
