@@ -166,6 +166,9 @@ const thresholdValue = document.getElementById('threshold-value');
 const imgInvert = document.getElementById('img-invert');
 const imgReplace = document.getElementById('img-replace');
 const imgCoverage = document.getElementById('img-coverage');
+const imgZoom = document.getElementById('img-zoom');
+const zoomValue = document.getElementById('zoom-value');
+const btnResetImgAdjust = document.getElementById('btn-reset-img-adjust');
 
 // ===== CAMERA =====
 const cameraOpen = document.getElementById('camera-open');
@@ -1035,6 +1038,10 @@ async function handleImageFile(file) {
     thresholdValue.textContent = imageProcessor.threshold;
     imgInvert.checked = imageProcessor.invert;
 
+    if (imgZoom) imgZoom.value = String(imageProcessor.userScale || 1.0);
+    if (zoomValue) zoomValue.textContent = Math.round((imageProcessor.userScale || 1.0) * 100) + '%';
+    if (typeof updateGraphicTypeChips === 'function') updateGraphicTypeChips();
+
     btnPayImage.disabled = false;
     if (btnAddCartImage) btnAddCartImage.disabled = false;
 
@@ -1141,11 +1148,46 @@ imgThreshold.addEventListener('input', () => {
 
 });
 
+const chipModeAuto = document.getElementById('chip-mode-auto');
+const chipModeLogo = document.getElementById('chip-mode-logo');
+const chipModePhoto = document.getElementById('chip-mode-photo');
+
+function updateGraphicTypeChips(mode) {
+    const activeMode = mode || imageProcessor.mode;
+    if (chipModeAuto) chipModeAuto.classList.toggle('active', activeMode === 'auto');
+    if (chipModeLogo) chipModeLogo.classList.toggle('active', activeMode === 'logo');
+    if (chipModePhoto) chipModePhoto.classList.toggle('active', activeMode === 'photo');
+}
+
+if (chipModeAuto) chipModeAuto.addEventListener('click', () => { imageProcessor.setImageMode('auto'); updateGraphicTypeChips('auto'); renderImageCanvas(); });
+if (chipModeLogo) chipModeLogo.addEventListener('click', () => { imageProcessor.setImageMode('logo'); updateGraphicTypeChips('logo'); renderImageCanvas(); });
+if (chipModePhoto) chipModePhoto.addEventListener('click', () => { imageProcessor.setImageMode('photo'); updateGraphicTypeChips('photo'); renderImageCanvas(); });
+
 imgInvert.addEventListener('change', () => {
     imageProcessor.setInvert(imgInvert.checked);
     renderImageCanvas();
     updateCoverageWarning();
 });
+
+if (imgZoom) {
+    imgZoom.addEventListener('input', () => {
+        const val = parseFloat(imgZoom.value) || 1.0;
+        if (zoomValue) zoomValue.textContent = Math.round(val * 100) + '%';
+        imageProcessor.setZoom(val);
+        renderImageCanvas();
+        updateCoverageWarning();
+    });
+}
+
+if (btnResetImgAdjust) {
+    btnResetImgAdjust.addEventListener('click', () => {
+        imageProcessor.resetAdjustments();
+        if (imgZoom) imgZoom.value = '1.0';
+        if (zoomValue) zoomValue.textContent = '100%';
+        renderImageCanvas();
+        updateCoverageWarning();
+    });
+}
 
 removeImage.addEventListener('click', () => {
     resetImageState();
@@ -1156,6 +1198,7 @@ function resetImageState() {
 
     imageProcessor.originalFile = null;
     imageProcessor.source = null;
+    imageProcessor.resetAdjustments();
 
     imgKeychain.classList.remove('has-image');
 
@@ -1166,6 +1209,8 @@ function resetImageState() {
     imgThreshold.value = '128';
     thresholdValue.textContent = '128';
     imgInvert.checked = false;
+    if (imgZoom) imgZoom.value = '1.0';
+    if (zoomValue) zoomValue.textContent = '100%';
 
     imgFile.value = '';
 
@@ -1174,6 +1219,72 @@ function resetImageState() {
     btnPayImage.disabled = true;
     if (btnAddCartImage) btnAddCartImage.disabled = true;
 }
+
+// ===== INTERACTIVE IMAGE DRAG & ZOOM =====
+(function initImageDragEvents() {
+    const box = document.getElementById('img-keychain');
+    if (!box) return;
+
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let initialOffsetX = 0;
+    let initialOffsetY = 0;
+
+    box.addEventListener('pointerdown', (e) => {
+        if (!imageProcessor || !imageProcessor.hasImage) return;
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        initialOffsetX = imageProcessor.offsetX;
+        initialOffsetY = imageProcessor.offsetY;
+        box.classList.add('dragging');
+        box.setPointerCapture(e.pointerId);
+    });
+
+    box.addEventListener('pointermove', (e) => {
+        if (!isDragging || !imageProcessor || !imageProcessor.hasImage) return;
+        const rect = box.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+
+        const deltaX = e.clientX - startX;
+        const deltaY = e.clientY - startY;
+
+        const canvasScaleX = imageProcessor.width / rect.width;
+        const canvasScaleY = imageProcessor.height / rect.height;
+
+        const newOffsetX = initialOffsetX + (deltaX * canvasScaleX);
+        const newOffsetY = initialOffsetY + (deltaY * canvasScaleY);
+
+        imageProcessor.setOffset(newOffsetX, newOffsetY);
+        renderImageCanvas();
+    });
+
+    function endDrag(e) {
+        if (!isDragging) return;
+        isDragging = false;
+        box.classList.remove('dragging');
+        if (e.pointerId && box.hasPointerCapture(e.pointerId)) {
+            box.releasePointerCapture(e.pointerId);
+        }
+    }
+
+    box.addEventListener('pointerup', endDrag);
+    box.addEventListener('pointercancel', endDrag);
+
+    box.addEventListener('wheel', (e) => {
+        if (!imageProcessor || !imageProcessor.hasImage) return;
+        e.preventDefault();
+        const zoomDelta = e.deltaY < 0 ? 0.05 : -0.05;
+        const currentZoom = imageProcessor.userScale || 1.0;
+        const nextZoom = Math.max(0.5, Math.min(2.5, currentZoom + zoomDelta));
+        
+        imageProcessor.setZoom(nextZoom);
+        if (imgZoom) imgZoom.value = nextZoom.toFixed(2);
+        if (zoomValue) zoomValue.textContent = Math.round(nextZoom * 100) + '%';
+        renderImageCanvas();
+    }, { passive: false });
+})();
 
 // Upload the original + processed bitmaps to Storage. Returns their paths.
 async function uploadImageBlobs() {
