@@ -625,78 +625,150 @@
     </section>
 
     <!-- Screen 5: Queue / Success -->
+    <!-- Screen 5: Queue / Success -->
     <section id="screen-success" class="screen">
-        <div class="container">
-            <div class="success-icon">
-                <svg viewBox="0 0 80 80" class="checkmark-svg">
-                    <circle cx="40" cy="40" r="36" class="checkmark-circle" />
-                    <polyline points="24,42 36,54 56,30" class="checkmark-tick" />
-                </svg>
-            </div>
-            <h2 class="section-title success-title">Order Confirmed</h2>
-            <p class="queue-position">Position <span id="queue-number">#…</span></p>
-
-            <div class="order-progress" id="order-progress">
-                <div class="progress-step completed" id="step-payment">
-                    <div class="progress-icon">✓</div>
-                    <div class="progress-content">
-                        <div class="progress-title">Payment Received</div>
-                        <div class="progress-sub">Confirmed</div>
+        <div class="success-dashboard-wrapper">
+            <!-- Header Card Banner -->
+            <div class="success-banner-card">
+                <div class="banner-left">
+                    <div class="success-icon-ring">
+                        <svg viewBox="0 0 80 80" class="checkmark-svg">
+                            <circle cx="40" cy="40" r="36" class="checkmark-circle" />
+                            <polyline points="24,42 36,54 56,30" class="checkmark-tick" />
+                        </svg>
+                    </div>
+                    <div class="banner-headings">
+                        <h2 class="success-title">Order Confirmed!</h2>
+                        <p class="success-sub">Your custom laser engraving order has been queued successfully.</p>
                     </div>
                 </div>
-
-                <div class="progress-line"></div>
-
-                <div class="progress-step active" id="step-queue">
-                    <div class="progress-icon"><span class="spinner"></span></div>
-                    <div class="progress-content">
-                        <div class="progress-title">Waiting in Queue</div>
-                        <div class="progress-sub">In queue</div>
-                    </div>
-                </div>
-
-                <div class="progress-line"></div>
-
-                <div class="progress-step" id="step-printing">
-                    <div class="progress-icon">🔥</div>
-                    <div class="progress-content">
-                        <div class="progress-title">Engraving</div>
-                        <div class="progress-sub">Laser active</div>
-                    </div>
-                </div>
-
-                <div class="progress-line"></div>
-
-                <div class="progress-step" id="step-done">
-                    <div class="progress-icon">✨</div>
-                    <div class="progress-content">
-                        <div class="progress-title">Ready for Pickup</div>
-                        <div class="progress-sub">Collect product</div>
+                
+                <div class="banner-right">
+                    <div class="queue-badge-box">
+                        <span class="queue-badge-title">YOUR QUEUE POSITION</span>
+                        <div class="queue-position-val" id="queue-number">#…</div>
                     </div>
                 </div>
             </div>
 
-            <p class="success-sub">Keychain <span id="success-for">for <strong id="success-name"></strong></span> is in
-                line.</p>
+            <!-- Main 2-Column Dashboard Grid -->
+            <div class="success-dashboard-grid">
+                <!-- Column 1: Live Status & Progress Tracker -->
+                <div class="dashboard-card tracker-card">
+                    <div class="card-header-bar">
+                        <h3>⚡ Live Engraving Status</h3>
+                        <div class="live-status-pill">
+                            <span class="pulse-dot"></span>
+                            <span>LIVE STUDIO QUEUE</span>
+                        </div>
+                    </div>
 
-            <div class="live-queue" id="live-queue" hidden>
-                <div class="live-queue-row">
-                    <span class="live-dot"></span>
-                    <span class="live-queue-text" id="live-queue-text">Now printing: <strong
-                            id="now-printing">—</strong></span>
+                    <!-- Live Printing Monitor Box -->
+                    <div class="live-queue" id="live-queue">
+                        <div class="live-queue-row">
+                            <span class="live-queue-text" id="live-queue-text">
+                                Currently Printing on Laser Bed: <strong id="now-printing">#14</strong>
+                            </span>
+                        </div>
+                        <p class="live-queue-sub" id="live-queue-sub">
+                            Keychain <span id="success-for">for <strong id="success-name"></strong></span> is in line.
+                        </p>
+                    </div>
+
+                    <!-- Progress Step Timeline -->
+                    <div class="order-progress" id="order-progress">
+                        <div class="progress-step completed" id="step-payment">
+                            <div class="progress-icon">✓</div>
+                            <div class="progress-content">
+                                <div class="progress-title">Payment Received</div>
+                                <div class="progress-sub">Order confirmed & verified</div>
+                            </div>
+                        </div>
+
+                        <div class="progress-line"></div>
+
+                        <div class="progress-step active" id="step-queue">
+                            <div class="progress-icon"><span class="spinner"></span></div>
+                            <div class="progress-content">
+                                <div class="progress-title">Waiting in Queue</div>
+                                <div class="progress-sub">Materials queued & ready</div>
+                            </div>
+                        </div>
+
+                        <div class="progress-line"></div>
+
+                        <div class="progress-step" id="step-printing">
+                            <div class="progress-icon">🔥</div>
+                            <div class="progress-content">
+                                <div class="progress-title">Laser Engraving Active</div>
+                                <div class="progress-sub">High-precision vector burning</div>
+                            </div>
+                        </div>
+
+                        <div class="progress-line"></div>
+
+                        <div class="progress-step" id="step-done">
+                            <div class="progress-icon">✨</div>
+                            <div class="progress-content">
+                                <div class="progress-title">Ready for Pickup</div>
+                                <div class="progress-sub">Quality check complete</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="verify-banner" id="verify-banner" hidden></div>
+
+                    <!-- Action Buttons -->
+                    <div class="tracker-action-row">
+                        <button type="button" class="btn-notify" id="btn-notify">
+                            <span>🔔 Notify me when ready</span>
+                        </button>
+                    </div>
                 </div>
-                <p class="live-queue-sub" id="live-queue-sub">Checking queue status…</p>
-            </div>
 
-            <button type="button" class="btn-notify" id="btn-notify"
-                style="margin-top: 16px; padding: 10px 18px; border: 1px solid var(--border); border-radius: 100px; background: #fff; cursor: pointer;">
-                <span>Notify me when ready</span>
-            </button>
+                <!-- Column 2: Order Information & Studio Guarantee -->
+                <div class="dashboard-card info-card">
+                    <div class="card-header-bar">
+                        <h3>📦 Order Specs & Summary</h3>
+                        <span class="info-badge">INVENGIC STUDIO</span>
+                    </div>
 
-            <div class="verify-banner" id="verify-banner" hidden></div>
+                    <div class="info-preview-box">
+                        <div class="info-wood-chip">🪵 Premium Solid Oak Wood</div>
+                        <h4 class="info-item-title">Custom Laser Engraved Keychain</h4>
+                        <p class="success-footer-text" id="success-footer-text">We'll engrave your custom keychain shortly.</p>
+                    </div>
 
-            <div class="success-footer" style="margin-top: 20px; color: var(--text-dim); font-size: 0.82rem;">
-                <p id="success-footer-text">We'll engrave your custom keychain shortly.</p>
+                    <div class="info-details-table">
+                        <div class="info-row">
+                            <span class="info-label">Estimated Time</span>
+                            <span class="info-val highlight-badge">⏱️ ~3 to 6 Minutes</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Material Finish</span>
+                            <span class="info-val">Natural Solid Oak Wood</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Laser Precision</span>
+                            <span class="info-val">0.1mm Vector Engraving</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Payment Status</span>
+                            <span class="info-val status-green">✓ Verified & Paid</span>
+                        </div>
+                    </div>
+
+                    <div class="studio-pickup-note">
+                        <div class="note-icon">💡</div>
+                        <div class="note-content">
+                            <strong>Collection Note:</strong> Please stay nearby or check screen when your queue position is called at the printing counter.
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-secondary btn-block" style="margin-top: 18px; width: 100%; border-radius: var(--radius-md);" onclick="if(window.handleStartCreating) window.handleStartCreating(); else showScreen('create');">
+                        ➕ Create Another Custom Keychain
+                    </button>
+                </div>
             </div>
         </div>
     </section>
