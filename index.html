@@ -22,8 +22,33 @@
             <img src="assets/logo.png?v=20260916_v4" alt="Invengic Studio Logo" class="brand-full-logo-img">
         </a>
 
-
+        <!-- Right Header Actions -->
         <div class="header-actions">
+            <!-- User Authentication Status Bar -->
+            <div class="user-auth-bar" id="user-auth-bar">
+                <button class="header-auth-btn" id="btn-header-auth" aria-label="Sign In" title="Sign In with Phone Number">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                    <span id="auth-btn-label">Sign In</span>
+                </button>
+                
+                <div class="user-profile-badge" id="user-profile-badge" hidden>
+                    <span class="user-phone-tag" id="user-phone-tag">📱 +91 9876543210</span>
+                    <button class="user-logout-btn" id="btn-logout" title="Sign Out">Logout</button>
+                </div>
+            </div>
+
+            <button class="header-help-btn" id="btn-header-help" aria-label="How It Works" title="How It Works">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <span>How It Works</span>
+            </button>
+
             <button class="cart-nav-btn" id="cart-btn" aria-label="View Cart" title="View Cart">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="9" cy="21" r="1"/>
@@ -72,7 +97,7 @@
                     </p>
 
                     <div class="welcome-actions">
-                        <button class="btn btn-primary" id="btn-start" onclick="showScreen('create')">
+                        <button class="btn btn-primary" id="btn-start" onclick="handleStartCreating()">
                             Start creating
                             <svg class="btn-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none"
                                 stroke="currentColor" stroke-width="2">
@@ -80,6 +105,12 @@
                                 <polyline points="12,5 19,12 12,19" />
                             </svg>
                         </button>
+                        <a href="#testimonial-section" class="hero-scroll-hint" onclick="document.getElementById('testimonial-section').scrollIntoView({behavior:'smooth'}); return false;" title="View Customer Experience">
+                            <span>Customer Experience</span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M7 10l5 5 5-5"/>
+                            </svg>
+                        </a>
                     </div>
                 </div>
 
@@ -708,31 +739,109 @@
         </div>
     </div>
 
-    <!-- Phone Number Modal (Appears upon tapping Proceed to Pay) -->
-    <div id="phone-modal" class="phone-modal" hidden>
-        <div class="phone-modal-backdrop" id="phone-modal-backdrop"></div>
-        <div class="phone-modal-box">
+    <!-- Invisible reCAPTCHA Container for Firebase Phone Auth -->
+    <div id="recaptcha-container"></div>
+
+    <!-- Phone Number OTP Authentication Modal -->
+    <div id="auth-modal" class="phone-modal" hidden>
+        <div class="phone-modal-backdrop" id="auth-modal-backdrop"></div>
+        <div class="phone-modal-box auth-modal-box">
             <div class="phone-modal-header">
-                <div class="phone-modal-icon">📱</div>
-                <h3>ENTER MOBILE NUMBER</h3>
-                <p class="phone-modal-sub">We'll send your thank-you SMS &amp; live queue updates here.</p>
-                <button type="button" id="phone-modal-close" class="phone-modal-close-btn" aria-label="Close modal">&times;</button>
+                <div class="phone-modal-icon">🔒</div>
+                <h3 id="auth-modal-title">PHONE NUMBER LOGIN</h3>
+                <p class="phone-modal-sub" id="auth-modal-sub">Sign in with your 10-digit mobile number to create custom keychains.</p>
+                <button type="button" id="auth-modal-close" class="phone-modal-close-btn" aria-label="Close modal">&times;</button>
             </div>
+            
             <div class="phone-modal-body">
-                <div class="phone-input-group">
-                    <label for="modal-phone-input" class="phone-label">MOBILE NUMBER</label>
-                    <div class="phone-input-wrapper">
-                        <span class="country-code">🇮🇳 +91</span>
-                        <input type="tel" id="modal-phone-input" class="phone-field" placeholder="9876543210" maxlength="10" pattern="[6-9][0-9]{9}" autocomplete="tel">
+                <!-- Step 1: Phone Input Form -->
+                <div id="auth-step-phone" class="auth-step-panel">
+                    <div class="phone-input-group" id="auth-name-group" style="margin-bottom: 12px;">
+                        <label for="auth-name-input" class="phone-label">YOUR FULL NAME</label>
+                        <div class="phone-input-wrapper">
+                            <span class="country-code">👤</span>
+                            <input type="text" id="auth-name-input" class="phone-field" placeholder="e.g. Rahul Sharma" maxlength="50" autocomplete="name">
+                        </div>
                     </div>
-                    <span class="phone-hint" id="modal-phone-hint">Enter 10-digit mobile number</span>
+                    <div class="phone-input-group" id="auth-phone-group">
+                        <label for="auth-phone-input" class="phone-label">MOBILE NUMBER</label>
+                        <div class="phone-input-wrapper">
+                            <span class="country-code">🇮🇳 +91</span>
+                            <input type="tel" id="auth-phone-input" class="phone-field" placeholder="9876543210" maxlength="10" pattern="[6-9][0-9]{9}" autocomplete="tel">
+                        </div>
+                        <span class="phone-hint" id="auth-phone-hint">Enter full name & 10-digit mobile number</span>
+                    </div>
+                    <button type="button" class="btn btn-primary btn-block" id="btn-send-otp" style="width: 100%; margin-top: 16px;">
+                        <span>Send Verification OTP</span>
+                        <svg class="btn-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                            <polyline points="12,5 19,12 12,19" />
+                        </svg>
+                    </button>
                 </div>
-                <button type="button" class="btn btn-primary btn-block" id="btn-phone-continue" style="width: 100%; margin-top: 14px;">
-                    Continue to Pay ₹1
-                    <svg class="btn-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                        <polyline points="12,5 19,12 12,19" />
-                    </svg>
+
+                <!-- Step 2: OTP Verification Form -->
+                <div id="auth-step-otp" class="auth-step-panel" hidden>
+                    <div class="otp-sent-info">
+                        <span>OTP sent to </span>
+                        <strong id="auth-otp-target">+91 9876543210</strong>
+                        <button type="button" class="btn-change-phone" id="btn-change-phone">Change</button>
+                    </div>
+                    
+                    <div class="phone-input-group" id="auth-otp-group" style="margin-top: 14px;">
+                        <label for="auth-otp-input" class="phone-label">ENTER 6-DIGIT OTP</label>
+                        <input type="text" id="auth-otp-input" class="phone-field otp-field" placeholder="123456" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code">
+                        <span class="phone-hint" id="auth-otp-hint">Enter 6-digit OTP code</span>
+                    </div>
+
+                    <button type="button" class="btn btn-primary btn-block" id="btn-verify-otp" style="width: 100%; margin-top: 16px;">
+                        <span>Verify OTP & Login</span>
+                    </button>
+
+                    <div class="resend-otp-row">
+                        <button type="button" class="btn-resend-otp" id="btn-resend-otp">Resend OTP</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help / How It Works Modal -->
+    <div id="help-modal" class="phone-modal" hidden>
+        <div class="phone-modal-backdrop" id="help-modal-backdrop"></div>
+        <div class="phone-modal-box help-modal-box">
+            <div class="phone-modal-header">
+                <div class="phone-modal-icon">⚡</div>
+                <h3>HOW IT WORKS</h3>
+                <p class="phone-modal-sub">Create your custom laser-engraved wooden keychain in 3 easy steps.</p>
+                <button type="button" id="help-modal-close" class="phone-modal-close-btn" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="phone-modal-body help-modal-body">
+                <div class="help-steps-list">
+                    <div class="help-step-card">
+                        <div class="help-step-num">1</div>
+                        <div class="help-step-content">
+                            <h4>Pick Your Shape & Style</h4>
+                            <p>Choose from Rectangle, Circle, Heart, Oval, or Shield oak wooden keychains.</p>
+                        </div>
+                    </div>
+                    <div class="help-step-card">
+                        <div class="help-step-num">2</div>
+                        <div class="help-step-content">
+                            <h4>Personalize Design</h4>
+                            <p>Add custom text with stylish fonts, emojis, or upload your favorite photo portrait.</p>
+                        </div>
+                    </div>
+                    <div class="help-step-card">
+                        <div class="help-step-num">3</div>
+                        <div class="help-step-content">
+                            <h4>Instant On-The-Spot Engraving</h4>
+                            <p>Complete payment and watch your keychain engrave live on our precision laser printer!</p>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-primary btn-block" id="btn-help-start" style="width: 100%; margin-top: 16px;" onclick="closeHelpModal(); handleStartCreating();">
+                    Start Creating Now
                 </button>
             </div>
         </div>
@@ -782,6 +891,7 @@
 
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>

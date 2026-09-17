@@ -89,68 +89,342 @@ function isValidPhoneNumber(phone) {
     return /^[6-9]\d{9}$/.test(String(phone).trim());
 }
 
-function openPhoneModal(mode) {
-    pendingPaymentMode = mode;
-    if (phoneModal) {
-        phoneModal.hidden = false;
-        if (modalPhoneInput) {
-            modalPhoneInput.value = '';
-            modalPhoneInput.focus();
-        }
-        const group = phoneModal.querySelector('.phone-input-group');
-        if (group) group.classList.remove('invalid', 'valid');
-        if (modalPhoneHint) modalPhoneHint.textContent = 'Enter 10-digit mobile number';
+// ===== PHONE NUMBER OTP AUTHENTICATION MANAGER =====
+let currentUserPhone = localStorage.getItem('invengic_user_phone') || null;
+let currentUserName = localStorage.getItem('invengic_user_name') || null;
+let confirmationResult = null;
+let authSuccessCallback = null;
+
+const btnHeaderAuth = document.getElementById('btn-header-auth');
+const userProfileBadge = document.getElementById('user-profile-badge');
+const userPhoneTag = document.getElementById('user-phone-tag');
+const btnLogout = document.getElementById('btn-logout');
+
+const authModal = document.getElementById('auth-modal');
+const authModalClose = document.getElementById('auth-modal-close');
+const authModalBackdrop = document.getElementById('auth-modal-backdrop');
+
+const authStepPhone = document.getElementById('auth-step-phone');
+const authStepOtp = document.getElementById('auth-step-otp');
+const authNameInput = document.getElementById('auth-name-input');
+const authPhoneInput = document.getElementById('auth-phone-input');
+const authPhoneHint = document.getElementById('auth-phone-hint');
+const btnSendOtp = document.getElementById('btn-send-otp');
+const authOtpTarget = document.getElementById('auth-otp-target');
+const authOtpInput = document.getElementById('auth-otp-input');
+const authOtpHint = document.getElementById('auth-otp-hint');
+const btnVerifyOtp = document.getElementById('btn-verify-otp');
+const btnChangePhone = document.getElementById('btn-change-phone');
+const btnResendOtp = document.getElementById('btn-resend-otp');
+
+function getFirebaseAuth() {
+    if (window.auth) return window.auth;
+    if (typeof firebase !== 'undefined' && firebase.auth) {
+        window.auth = firebase.auth();
+        return window.auth;
+    }
+    return null;
+}
+
+function getLoggedInUserPhone() {
+    const authInst = getFirebaseAuth();
+    if (authInst && authInst.currentUser && authInst.currentUser.phoneNumber) {
+        return authInst.currentUser.phoneNumber.replace(/\D/g, '').slice(-10);
+    }
+    return currentUserPhone || localStorage.getItem('invengic_user_phone') || null;
+}
+window.getLoggedInUserPhone = getLoggedInUserPhone;
+
+function getLoggedInUserName() {
+    const authInst = getFirebaseAuth();
+    if (authInst && authInst.currentUser && authInst.currentUser.displayName) {
+        return authInst.currentUser.displayName;
+    }
+    return currentUserName || localStorage.getItem('invengic_user_name') || '';
+}
+window.getLoggedInUserName = getLoggedInUserName;
+
+function updateAuthUI() {
+    const loggedInPhone = getLoggedInUserPhone();
+    const loggedInName = getLoggedInUserName();
+    if (loggedInPhone) {
+        if (btnHeaderAuth) btnHeaderAuth.hidden = true;
+        if (userProfileBadge) userProfileBadge.hidden = false;
+        const badgeText = loggedInName ? `👤 ${loggedInName}` : `📱 +91 ${loggedInPhone}`;
+        if (userPhoneTag) userPhoneTag.textContent = badgeText;
+    } else {
+        if (btnHeaderAuth) btnHeaderAuth.hidden = false;
+        if (userProfileBadge) userProfileBadge.hidden = true;
     }
 }
 
-function closePhoneModal() {
-    if (phoneModal) phoneModal.hidden = true;
-    if (btnPay) btnPay.disabled = nameInput.value.trim().length === 0;
-    if (btnAddCartText) btnAddCartText.disabled = nameInput.value.trim().length === 0;
-    if (btnPayImage) btnPayImage.disabled = !imageProcessor.hasImage;
-    if (btnAddCartImage) btnAddCartImage.disabled = !imageProcessor.hasImage;
+function openAuthModal(onSuccess) {
+    authSuccessCallback = typeof onSuccess === 'function' ? onSuccess : null;
+    if (authModal) {
+        authModal.hidden = false;
+        showAuthStep('phone');
+        if (authNameInput) {
+            authNameInput.value = getLoggedInUserName() || '';
+        }
+        if (authPhoneInput) {
+            authPhoneInput.value = getLoggedInUserPhone() || '';
+            setTimeout(() => {
+                if (authNameInput && !authNameInput.value) authNameInput.focus();
+                else authPhoneInput.focus();
+            }, 100);
+        }
+    }
+}
+window.openAuthModal = openAuthModal;
+
+function closeAuthModal() {
+    if (authModal) authModal.hidden = true;
+}
+window.closeAuthModal = closeAuthModal;
+
+function showAuthStep(step) {
+    if (step === 'phone') {
+        if (authStepPhone) authStepPhone.hidden = false;
+        if (authStepOtp) authStepOtp.hidden = true;
+        if (authPhoneHint) authPhoneHint.textContent = 'Enter full name & 10-digit mobile number';
+        if (authNameInput && !authNameInput.value) authNameInput.focus();
+        else if (authPhoneInput) authPhoneInput.focus();
+    } else if (step === 'otp') {
+        if (authStepPhone) authStepPhone.hidden = true;
+        if (authStepOtp) authStepOtp.hidden = false;
+        if (authOtpHint) authOtpHint.textContent = 'Enter 6-digit OTP code';
+        if (authOtpInput) {
+            authOtpInput.value = '';
+            setTimeout(() => authOtpInput.focus(), 100);
+        }
+    }
 }
 
-if (phoneModalClose) phoneModalClose.addEventListener('click', closePhoneModal);
-if (phoneModalBackdrop) phoneModalBackdrop.addEventListener('click', closePhoneModal);
-
-if (modalPhoneInput) {
-    modalPhoneInput.addEventListener('input', (e) => {
-        const cleanVal = e.target.value.replace(/\D/g, '').slice(0, 10);
-        e.target.value = cleanVal;
-        const valid = isValidPhoneNumber(cleanVal);
-        const group = phoneModal.querySelector('.phone-input-group');
-        if (group) {
-            group.classList.toggle('valid', valid);
-            group.classList.toggle('invalid', cleanVal.length === 10 && !valid);
+// Firebase Auth State Observer
+const authObserverInstance = getFirebaseAuth();
+if (authObserverInstance) {
+    authObserverInstance.onAuthStateChanged((user) => {
+        if (user && user.phoneNumber) {
+            const tenDigit = user.phoneNumber.replace(/\D/g, '').slice(-10);
+            currentUserPhone = tenDigit;
+            localStorage.setItem('invengic_user_phone', tenDigit);
+            if (user.displayName) {
+                currentUserName = user.displayName;
+                localStorage.setItem('invengic_user_name', user.displayName);
+            }
+        } else if (!localStorage.getItem('invengic_user_phone')) {
+            currentUserPhone = null;
+            currentUserName = null;
         }
-        if (modalPhoneHint) {
-            modalPhoneHint.textContent = valid 
-                ? '✓ Valid mobile number for thank-you SMS' 
-                : (cleanVal.length > 0 && cleanVal.length < 10 ? 'Enter full 10-digit mobile number' : 'Enter 10-digit mobile number');
-        }
+        updateAuthUI();
     });
+} else {
+    updateAuthUI();
+}
 
-    modalPhoneInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && btnPhoneContinue) {
+function initRecaptcha() {
+    const authInst = getFirebaseAuth();
+    if (!window.recaptchaVerifier && authInst && firebase.auth.RecaptchaVerifier) {
+        try {
+            window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+                'size': 'invisible',
+                'callback': () => {},
+                'expired-callback': () => {
+                    if (window.recaptchaVerifier) {
+                        try {
+                            window.recaptchaVerifier.render().then(widgetId => {
+                                if (window.grecaptcha) window.grecaptcha.reset(widgetId);
+                            });
+                        } catch (e) {}
+                    }
+                }
+            });
+        } catch (e) {
+            console.error('[AUTH] Recaptcha setup error:', e);
+        }
+    }
+}
+
+async function handleSendOTP() {
+    const rawName = (authNameInput ? authNameInput.value : '').trim();
+    if (!rawName || rawName.length < 2) {
+        if (authPhoneHint) authPhoneHint.textContent = 'Please enter your full name (at least 2 letters)';
+        if (authNameInput) authNameInput.focus();
+        return;
+    }
+
+    const rawPhone = (authPhoneInput ? authPhoneInput.value : '').replace(/\D/g, '').slice(-10);
+    if (!isValidPhoneNumber(rawPhone)) {
+        if (authPhoneHint) authPhoneHint.textContent = 'Please enter a valid 10-digit mobile number (starting with 6-9)';
+        if (authPhoneInput) authPhoneInput.focus();
+        return;
+    }
+
+    const authInst = getFirebaseAuth();
+    if (!authInst) {
+        if (authPhoneHint) authPhoneHint.textContent = 'Firebase Auth SDK is not available. Please check network connection.';
+        return;
+    }
+
+    currentUserName = rawName;
+    localStorage.setItem('invengic_user_name', rawName);
+
+    btnSendOtp.disabled = true;
+    const origBtnText = btnSendOtp.innerHTML;
+    btnSendOtp.textContent = 'Sending OTP…';
+    if (authPhoneHint) authPhoneHint.textContent = 'Sending SMS via Firebase…';
+
+    try {
+        initRecaptcha();
+        const fullPhone = '+91' + rawPhone;
+        const appVerifier = window.recaptchaVerifier;
+
+        if (!appVerifier) {
+            throw new Error('reCAPTCHA verifier could not be initialized. Please refresh and try again.');
+        }
+
+        confirmationResult = await authInst.signInWithPhoneNumber(fullPhone, appVerifier);
+        console.log('[AUTH_OTP] Real SMS sent to', fullPhone);
+        
+        currentUserPhone = rawPhone;
+        if (authOtpTarget) authOtpTarget.textContent = '+91 ' + rawPhone;
+        if (authOtpHint) authOtpHint.textContent = `Enter the 6-digit OTP code sent via SMS to +91 ${rawPhone}.`;
+        showAuthStep('otp');
+        showToast('OTP sent via SMS to +91 ' + rawPhone, 'info');
+    } catch (err) {
+        console.error('[AUTH_OTP] Firebase Phone Auth Error:', err);
+        
+        // Reset reCAPTCHA on failure so retry works cleanly
+        if (window.recaptchaVerifier && typeof window.recaptchaVerifier.render === 'function') {
+            window.recaptchaVerifier.render().then(widgetId => {
+                if (window.grecaptcha) window.grecaptcha.reset(widgetId);
+            }).catch(() => {});
+        }
+        
+        let errorMsg = err.message ? `[${err.code || 'ERROR'}] ${err.message}` : 'Failed to send OTP SMS. Please try again.';
+        if (err.code === 'auth/operation-not-allowed') {
+            errorMsg = `[auth/operation-not-allowed] Phone Auth is disabled or restricted in Firebase Console (Check Sign-in Method & SMS Region Policy).`;
+        } else if (err.code === 'auth/invalid-app-credential') {
+            errorMsg = `[auth/invalid-app-credential] Domain not authorized or App Verification failed in Firebase Console.`;
+        }
+
+        if (authPhoneHint) authPhoneHint.textContent = errorMsg;
+        showToast(errorMsg, 'error');
+    } finally {
+        btnSendOtp.disabled = false;
+        btnSendOtp.innerHTML = origBtnText;
+    }
+}
+
+async function handleVerifyOTP() {
+    const otpCode = (authOtpInput ? authOtpInput.value : '').replace(/\D/g, '').trim();
+    if (otpCode.length !== 6) {
+        if (authOtpHint) authOtpHint.textContent = 'Please enter the 6-digit OTP code received on your phone.';
+        if (authOtpInput) authOtpInput.focus();
+        return;
+    }
+
+    if (!confirmationResult || typeof confirmationResult.confirm !== 'function') {
+        if (authOtpHint) authOtpHint.textContent = 'Verification session expired. Please click Resend OTP.';
+        showToast('Session expired. Resend OTP.', 'warning');
+        return;
+    }
+
+    btnVerifyOtp.disabled = true;
+    const origText = btnVerifyOtp.innerHTML;
+    btnVerifyOtp.textContent = 'Verifying OTP…';
+    if (authOtpHint) authOtpHint.textContent = 'Verifying code with Firebase Auth…';
+
+    try {
+        const userCredential = await confirmationResult.confirm(otpCode);
+        const user = userCredential ? userCredential.user : null;
+        
+        const rawPhone = (user && user.phoneNumber)
+            ? user.phoneNumber.replace(/\D/g, '').slice(-10)
+            : ((authPhoneInput ? authPhoneInput.value : '').replace(/\D/g, '').slice(-10) || currentUserPhone);
+            
+        currentUserPhone = rawPhone;
+        localStorage.setItem('invengic_user_phone', rawPhone);
+        
+        if (currentUserName) {
+            localStorage.setItem('invengic_user_name', currentUserName);
+            if (user && typeof user.updateProfile === 'function') {
+                user.updateProfile({ displayName: currentUserName }).catch(() => {});
+            }
+        }
+        
+        updateAuthUI();
+        closeAuthModal();
+        const welcomeName = currentUserName ? currentUserName : ('+91 ' + rawPhone);
+        showToast(`Successfully verified! Welcome, ${welcomeName}`, 'success');
+
+        if (authSuccessCallback) {
+            const callback = authSuccessCallback;
+            authSuccessCallback = null;
+            callback();
+        }
+    } catch (err) {
+        console.error('[AUTH_VERIFY] Incorrect OTP or verification error:', err);
+        let errorMsg = 'Incorrect OTP code. Please check the code sent to your phone and try again.';
+        if (err.code === 'auth/invalid-verification-code') {
+            errorMsg = 'Invalid OTP code. Please enter the correct 6-digit code received via SMS.';
+        } else if (err.code === 'auth/code-expired') {
+            errorMsg = 'OTP code expired. Please click Resend OTP to get a new code.';
+        }
+        if (authOtpHint) authOtpHint.textContent = errorMsg;
+        showToast(errorMsg, 'error');
+    } finally {
+        btnVerifyOtp.disabled = false;
+        btnVerifyOtp.innerHTML = origText;
+    }
+}
+
+function handleLogout() {
+    if (window.auth) {
+        window.auth.signOut().catch(() => {});
+    }
+    currentUserPhone = null;
+    currentUserName = null;
+    localStorage.removeItem('invengic_user_phone');
+    localStorage.removeItem('invengic_user_name');
+    updateAuthUI();
+    showToast('Logged out successfully', 'info');
+}
+
+// Auth Event Listeners
+if (btnHeaderAuth) btnHeaderAuth.addEventListener('click', () => openAuthModal());
+if (btnLogout) btnLogout.addEventListener('click', handleLogout);
+if (authModalClose) authModalClose.addEventListener('click', closeAuthModal);
+if (authModalBackdrop) authModalBackdrop.addEventListener('click', closeAuthModal);
+if (btnSendOtp) btnSendOtp.addEventListener('click', handleSendOTP);
+if (btnVerifyOtp) btnVerifyOtp.addEventListener('click', handleVerifyOTP);
+if (btnChangePhone) btnChangePhone.addEventListener('click', () => showAuthStep('phone'));
+if (btnResendOtp) btnResendOtp.addEventListener('click', handleSendOTP);
+
+if (authNameInput) {
+    authNameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
             e.preventDefault();
-            btnPhoneContinue.click();
+            if (authPhoneInput) authPhoneInput.focus();
         }
     });
 }
 
-if (btnPhoneContinue) {
-    btnPhoneContinue.addEventListener('click', () => {
-        const rawPhone = (modalPhoneInput ? modalPhoneInput.value : '').replace(/\D/g, '');
-        if (!isValidPhoneNumber(rawPhone)) {
-            const group = phoneModal.querySelector('.phone-input-group');
-            if (group) group.classList.add('invalid');
-            if (modalPhoneHint) modalPhoneHint.textContent = 'Please enter a valid 10-digit mobile number (starting with 6-9)';
-            if (modalPhoneInput) modalPhoneInput.focus();
-            return;
+if (authPhoneInput) {
+    authPhoneInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleSendOTP();
         }
-        closePhoneModal();
-        initiatePayment(pendingPaymentMode, rawPhone);
+    });
+}
+
+if (authOtpInput) {
+    authOtpInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleVerifyOTP();
+        }
     });
 }
 
@@ -348,25 +622,84 @@ function resetShapeState() {
     selectShape(window.DEFAULT_SHAPE_ID || 'rectangle');
 }
 
-// ===== WELCOME HERO INTERACTION & PARALLAX =====
+// ===== WELCOME HERO INTERACTION & MOUSE FLOAT PHYSICS =====
+const heroCanvas = document.getElementById('hero-canvas');
 const heroSamples = document.querySelectorAll('.hero-sample-item');
-heroSamples.forEach(sample => {
-    const handleSampleSelect = () => {
-        const shapeId = sample.dataset.shape;
-        if (shapeId) {
-            selectShape(shapeId);
-        }
-        showScreen('create');
-    };
 
-    sample.addEventListener('click', handleSampleSelect);
-    sample.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleSampleSelect();
+if (heroCanvas && heroSamples.length > 0) {
+    let mouseX = 0, mouseY = 0;
+    let currentX = 0, currentY = 0;
+    let animId = null;
+
+    window.addEventListener('mousemove', (e) => {
+        if (document.body.dataset.screen !== 'welcome') return;
+
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+
+        mouseX = (e.clientX - centerX) / centerX;
+        mouseY = (e.clientY - centerY) / centerY;
+
+        if (!animId) {
+            animId = requestAnimationFrame(updateFloatPhysics);
         }
     });
-});
+
+    function updateFloatPhysics() {
+        currentX += (mouseX - currentX) * 0.06;
+        currentY += (mouseY - currentY) * 0.06;
+
+        heroSamples.forEach(sample => {
+            let speed = 20;
+            if (sample.classList.contains('depth-foreground')) speed = 35;
+            else if (sample.classList.contains('depth-midground')) speed = 20;
+            else if (sample.classList.contains('depth-background')) speed = 10;
+
+            const shiftX = (currentX * speed).toFixed(2);
+            const shiftY = (currentY * speed).toFixed(2);
+
+            sample.style.setProperty('--px', `${shiftX}px`);
+            sample.style.setProperty('--py', `${shiftY}px`);
+        });
+
+        if (Math.abs(mouseX - currentX) > 0.001 || Math.abs(mouseY - currentY) > 0.001) {
+            animId = requestAnimationFrame(updateFloatPhysics);
+        } else {
+            animId = null;
+        }
+    }
+
+    // Magnetic Repulsion on Neighboring Keychains
+    heroSamples.forEach(activeSample => {
+        activeSample.addEventListener('mouseenter', () => {
+            heroSamples.forEach(s => {
+                if (s !== activeSample) {
+                    s.classList.add('sample-dimmed');
+                }
+            });
+        });
+
+        activeSample.addEventListener('mouseleave', () => {
+            heroSamples.forEach(s => s.classList.remove('sample-dimmed'));
+        });
+
+        const handleSampleSelect = () => {
+            const shapeId = activeSample.dataset.shape;
+            if (shapeId && typeof selectShape === 'function') {
+                selectShape(shapeId);
+            }
+            showScreen('create');
+        };
+
+        activeSample.addEventListener('click', handleSampleSelect);
+        activeSample.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleSampleSelect();
+            }
+        });
+    });
+}
 
 // Footer quick links navigation
 document.querySelectorAll('.footer-link-shape').forEach(link => {
@@ -390,53 +723,7 @@ document.querySelectorAll('.footer-link-mode').forEach(link => {
     });
 });
 
-const heroCanvas = document.getElementById('hero-canvas');
 
-if (heroCanvas && heroSamples.length > 0 && window.matchMedia('(min-width: 900px)').matches) {
-    let mouseX = 0, mouseY = 0;
-    let currentX = 0, currentY = 0;
-    let isHovered = false;
-
-    function updateParallax() {
-        currentX += (mouseX - currentX) * 0.05;
-        currentY += (mouseY - currentY) * 0.05;
-
-        heroSamples.forEach((sample, i) => {
-            const depth = sample.classList.contains('depth-foreground') ? 1.5 :
-                          sample.classList.contains('depth-background') ? 0.6 : 1.0;
-            const dirX = (i % 2 === 0 ? 1 : -1) * depth;
-            const dirY = (i % 3 === 0 ? 1 : -1) * depth;
-
-            const px = (currentX * dirX * 22).toFixed(2);
-            const py = (currentY * dirY * 22).toFixed(2);
-
-            sample.style.setProperty('--px', `${px}px`);
-            sample.style.setProperty('--py', `${py}px`);
-        });
-
-        if (isHovered || Math.abs(currentX - mouseX) > 0.0005 || Math.abs(currentY - mouseY) > 0.0005) {
-            requestAnimationFrame(updateParallax);
-        }
-    }
-
-    heroCanvas.addEventListener('mousemove', (e) => {
-        const rect = heroCanvas.getBoundingClientRect();
-        mouseX = (e.clientX - rect.left - rect.width / 2) / (rect.width / 2);
-        mouseY = (e.clientY - rect.top - rect.height / 2) / (rect.height / 2);
-
-        if (!isHovered) {
-            isHovered = true;
-            requestAnimationFrame(updateParallax);
-        }
-    });
-
-    heroCanvas.addEventListener('mouseleave', () => {
-        isHovered = false;
-        mouseX = 0;
-        mouseY = 0;
-        requestAnimationFrame(updateParallax);
-    });
-}
 
 document.querySelectorAll('.shape-card').forEach(card => {
     card.addEventListener('click', () => {
@@ -2244,10 +2531,27 @@ if (cartCheckoutBtn) {
             showToast('Your cart is empty!', 'warning');
             return;
         }
-        closeCartDrawer();
-        openPhoneModal('cart');
+        if (!getLoggedInUserPhone()) {
+            openAuthModal(() => {
+                closeCartDrawer();
+                initiatePayment('cart', getLoggedInUserPhone());
+            });
+        } else {
+            closeCartDrawer();
+            initiatePayment('cart', getLoggedInUserPhone());
+        }
     });
 }
+
+window.handleStartCreating = function() {
+    if (!getLoggedInUserPhone()) {
+        openAuthModal(() => {
+            showScreen('create');
+        });
+    } else {
+        showScreen('create');
+    }
+};
 
 if (btnAddCartText) {
     btnAddCartText.addEventListener('click', () => handleAddToCart('text'));
