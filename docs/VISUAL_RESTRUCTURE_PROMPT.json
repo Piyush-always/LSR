@@ -1,0 +1,323 @@
+{
+  "project": {
+    "name": "Invengic Studio — visual restructure",
+    "site": "https://lsr.invengic.in",
+    "branch": "visual-restructure (from origin/Ayush, the live code)",
+    "type": "mobile-first ordering app for laser-engraved wooden keychains, used at stalls and events in India",
+    "goal": "Rebuild the look, layout and feel of every screen so it feels warm, crafted, honest and fast — like watching your own name get burnt into real wood — while every existing behaviour keeps working.",
+    "important": [
+      "This is a VISUAL restructure: layout, brand, typography, components, motion and copy tone.",
+      "Payment, order, login, queue and printer logic are out of scope. Where the visuals expose a logic problem, flag it; do not rewrite it here.",
+      "Every id, class and data attribute that js/*.js reads, writes or generates must keep working (see dom_contract).",
+      "The engraving geometry of the preview (shape outlines, hole, text box, sizes in mm) must not change — the printer relies on it."
+    ]
+  },
+  "creative_direction": {
+    "positioning": "Your name, burnt into real wood, while you watch.",
+    "personality": "The proud craftsman at the fest: warm (wood, hands, a little smoke), a bit cheeky, proud of the machine, honest about time and price.",
+    "not": [
+      "gamer neon",
+      "SaaS glassmorphism",
+      "indigo/cyan gradient mesh",
+      "luxury gift-box gold",
+      "handicraft-emporium kitsch",
+      "floating AI renders"
+    ],
+    "principles": [
+      "What you see is what burns: the preview looks like the real piece.",
+      "Wood first: real material, real photos, burn-brown ink.",
+      "One thumb, one decision per screen, one sticky primary action.",
+      "Only true things: no fake queue numbers, fake times or anonymous reviews in the new copy.",
+      "Calm chrome, loud product: the keychain is always the brightest, largest thing."
+    ],
+    "voice_examples": [
+      "Start my keychain",
+      "Type a name",
+      "This is exactly what the laser will burn.",
+      "Burning now — come watch!",
+      "Ready! Show your token at the counter."
+    ]
+  },
+  "brand_tokens": {
+    "colors": {
+      "birch": {
+        "hex": "#F7F0E3",
+        "role": "page background"
+      },
+      "kraft": {
+        "hex": "#E8D5B5",
+        "role": "cards, surfaces, packaging"
+      },
+      "char": {
+        "hex": "#1F1410",
+        "role": "text, icons, focus ring (15.9:1 on birch)"
+      },
+      "walnut": {
+        "hex": "#6B4226",
+        "role": "secondary text (7.6:1 on birch)"
+      },
+      "smoke": {
+        "hex": "#6F645B",
+        "role": "muted text (5.1:1 on birch)"
+      },
+      "burn": {
+        "hex": "#3A2317",
+        "role": "engraving ink in previews"
+      },
+      "ember": {
+        "hex": "#FF5B1F",
+        "role": "primary button fill; ALWAYS char label, never white; never text on birch"
+      },
+      "ember_deep": {
+        "hex": "#C2410C",
+        "role": "ember text and links on light backgrounds (4.6:1)"
+      },
+      "beam": {
+        "hex": "#3346FF",
+        "role": "only for 'laser is firing' moments"
+      },
+      "leaf": {
+        "hex": "#25683F",
+        "role": "ready / success"
+      },
+      "dark_set": {
+        "bg": "#1F1410",
+        "surface": "#2B1D16",
+        "text": "#F7F0E3",
+        "beam_light": "#7C8BFF"
+      }
+    },
+    "ratio_rule": "About 60% birch/kraft, 30% char/walnut, at most 10% ember. No gradients, glows, glass or grid backgrounds.",
+    "radius": {
+      "sm": "8px",
+      "md": "14px",
+      "lg": "22px",
+      "pill": "999px"
+    },
+    "shadow": {
+      "card": "0 1px 0 rgba(31,20,16,.06), 0 8px 24px -12px rgba(31,20,16,.25)",
+      "lift": "0 2px 0 rgba(31,20,16,.08), 0 18px 40px -18px rgba(31,20,16,.35)"
+    },
+    "spacing_scale_px": [
+      4,
+      8,
+      12,
+      16,
+      20,
+      24,
+      32,
+      40,
+      56,
+      72
+    ],
+    "rule": "Colours only through CSS custom properties; no hard-coded hex outside the token block."
+  },
+  "typography": {
+    "display": {
+      "family": "Bricolage Grotesque",
+      "weights": [
+        700,
+        800
+      ],
+      "use": "headlines, prices, tokens"
+    },
+    "ui": {
+      "family": "Anek Latin",
+      "weights": [
+        400,
+        500,
+        600
+      ],
+      "use": "body, labels, buttons"
+    },
+    "engraving_fonts": {
+      "rule": "Product fonts used inside the preview only (Montserrat, Bebas Neue, Pacifico, Permanent Marker, Press Start 2P, Noto Emoji). Keep loading them for the preview; never use them for UI.",
+      "default": "Keep the existing default engraving font unless the preview code makes a change trivial; a new default is a logic change and out of scope."
+    },
+    "scale": {
+      "base": "16px",
+      "min": "12px",
+      "h1": "clamp(40px, 11vw, 72px)",
+      "h2": "clamp(26px, 6vw, 40px)",
+      "price": "clamp(22px, 5vw, 28px)"
+    },
+    "rules": [
+      "Sentence case for UI; no tracked all-caps labels except tiny meta tags",
+      "Tabular figures for prices and tokens"
+    ]
+  },
+  "logo": {
+    "concept": "Tag-i: the 72×35 mm keychain blank stood upright reads as a lowercase i — the ring hole is the dot, the body is the stem. Optional split ring threaded through the hole.",
+    "deliverables_now": [
+      "assets/brand/mark.svg (tag, one colour)",
+      "assets/brand/mark-ring.svg (tag + split ring)",
+      "favicon.svg + PNG icons 32/180/192/512",
+      "Header lockup: mark + live text 'invengic' in Bricolage 800 + small 'studio'"
+    ],
+    "rules": [
+      "Flat, one colour, closed paths (burnable on the CV-01 Pro)",
+      "Readable at 16 px",
+      "Char on birch, birch on char, ember only"
+    ],
+    "interim": "Retire the chrome star logo image in header and footer."
+  },
+  "screens": {
+    "header": {
+      "layout": "52 px bar: lockup left; right: cart (icon + count) and a single account/help menu. Nothing wraps or overflows at 360 px.",
+      "fixes": [
+        "'Sign In' wrapping to two lines and 'Home' cut off at 390 px"
+      ]
+    },
+    "welcome": {
+      "purpose": "Answer price, time and 'does it look good' in 5 seconds; one tap to design.",
+      "layout": [
+        "Hero: real engraved keychain photography on birch (existing product PNGs, no floating collage)",
+        "H1 'Your name, burnt into real wood.'",
+        "Sub 'Design it on your phone. Watch our laser make it.'",
+        "Price/spec row (shapes + sizes; price from the page's existing source)",
+        "Primary CTA 'Start my keychain' (existing #btn-start behaviour)",
+        "Three shapes as tappable cards",
+        "How it works in 3 toolpath-line steps",
+        "Reviews section restyled (keep markup ids)",
+        "Footer: help, WhatsApp, policies placeholders"
+      ],
+      "remove": [
+        "glassmorphic hero card",
+        "floating/parallax renders",
+        "gradient mesh background"
+      ]
+    },
+    "create_studio": {
+      "purpose": "See your own name on wood within 10 seconds, one thumb.",
+      "layout": [
+        "Sticky preview card (~40% of height on phones) with a wood-grain surface behind the existing preview, burn-brown ink where the renderer allows it, 'Actual size' caption",
+        "Shape chips (rectangle / circle / heart with sizes)",
+        "Segmented control: Name | Photo",
+        "Big text input (56 px), emoji/symbol picker as a tidy row",
+        "Photo mode: one clear 'Add photo' area; advanced controls (zoom, threshold, invert) collapsed under 'Adjust'",
+        "Sticky bottom action bar with price and the primary button (existing pay / add-to-cart buttons, restyled)"
+      ],
+      "desktop": "Two columns: preview left (sticky), controls right."
+    },
+    "cart": {
+      "layout": "Bottom sheet on phones, right drawer on desktop; item rows with thumbnail, name, price; sticky checkout button."
+    },
+    "auth_modal": {
+      "layout": "Bottom sheet on phones; +91 fixed prefix; numeric keypad; clear helper text. Behaviour unchanged (login still required today — flagged as a logic change for later)."
+    },
+    "payment": {
+      "layout": "Calm full-screen state: status line, spinner, secondary actions as quiet buttons."
+    },
+    "success_status": {
+      "purpose": "Every screen after payment answers: my order, where it is, what to do now.",
+      "layout": [
+        "Big order/queue number card",
+        "Status stepper (Paid → In line → Burning → Ready) using existing status elements",
+        "Order summary card",
+        "Create another"
+      ],
+      "flag": "Hard-coded values in the current markup (#14, 3–6 min, 'Verified & Paid', material claims) are logic/content issues — keep ids, replace static placeholder text with neutral wording only where it is pure static copy."
+    },
+    "modals": {
+      "help": "How it works as 3 illustrated steps",
+      "camera": "full-screen, clear capture button",
+      "crop": "full-screen editor with bottom toolbar"
+    }
+  },
+  "components": [
+    "button (primary ember / secondary / ghost / icon)",
+    "chip & segmented control",
+    "shape card",
+    "input with counter",
+    "sheet/drawer",
+    "toast",
+    "status stepper",
+    "price bar",
+    "card",
+    "badge/tag"
+  ],
+  "motion": {
+    "rules": [
+      "Purposeful only: sheet slide 240 ms, press-down 1 px like a stamp, preview 'burn-in' fade",
+      "Remove float/hover-scale loops",
+      "prefers-reduced-motion: no transforms, instant state changes"
+    ]
+  },
+  "responsive": {
+    "breakpoints": [
+      "360",
+      "390 (primary)",
+      "768",
+      "1024",
+      "1440"
+    ],
+    "rules": [
+      "No horizontal scroll at 360 px",
+      "Tap targets ≥ 44×44 px",
+      "Safe-area insets for sticky bars"
+    ]
+  },
+  "accessibility": [
+    "Text contrast ≥ 4.5:1 (tokens are pre-checked)",
+    "Visible focus ring (char, 2 px, offset 2 px)",
+    "Labels on every input",
+    "Modals trap focus and close on Escape (behaviour permitting)",
+    "Emoji never used as UI icons"
+  ],
+  "performance": {
+    "budgets": [
+      "UI fonts ≤ 2 families",
+      "No new images > 150 KB",
+      "CSS ≤ 60 KB after restructure",
+      "No layout shift from fonts (font-display: swap + fallback metrics)"
+    ],
+    "notes": "Engraving fonts still load for the preview; deferring them is a later optimisation."
+  },
+  "dom_contract": {
+    "source": "docs/UI_MAP.md (sections 3-5 are the full list, with file:line for every reader)",
+    "rules": [
+      "Keep every id app.js dereferences at load without a null check (#home-btn, #btn-start, #emoji-panel, #emoji-toggle, #char-current, #name-input, #crop-*, #rotate-*, #img-canvas, #img-dropzone, #img-file, #img-threshold, #threshold-value, #img-invert, #remove-image, #img-keychain, #img-controls, #img-error, #img-coverage, #btn-pay, #btn-pay-image, #live-queue, #btn-notify and the four screen sections). One missing id stops the rest of app.js.",
+      "Screens switch only through .screen.active and body[data-screen]; modals and panels only through the hidden attribute, and [hidden]{display:none !important} must stay.",
+      "Listeners are bound once at load to .shape-card[data-shape-id], .hero-sample-item[data-shape] inside #hero-canvas, .footer-link-shape[data-shape] and .footer-link-mode[data-mode]: new tappable shape or mode entry points must reuse these classes as static markup.",
+      "#keychain-svg and the first .img-overlay are rebuilt with innerHTML on every shape change: style their contents from CSS only, never add children, and keep .img-overlay unique.",
+      "No CSS typography (font-size, font-family, letter-spacing, font-weight, text-transform) may reach #keychain-text or its ancestors: the preview size and the getBBox auto-fit depend on the attributes JS sets.",
+      "#img-keychain keeps position:relative, no fixed or max height, and the inline aspect-ratio JS writes; #img-canvas is placed in % of it and shows white = burn, so it needs an inverting filter.",
+      "JS rewrites the content of #btn-add-cart-* (innerHTML), #btn-open-direct-link (textContent) and the first <span> of #btn-notify: decoration inside them must be an <svg> or a pseudo-element.",
+      "The cart drawer and overlay are un-hidden and get .active in the same tick, and are hidden 350 ms after .active is removed: open with keyframes, close with a transition shorter than 350 ms.",
+      "z-index order stays: header 50 < cart overlay 1000 < drawer 1001 < camera 1050 < crop = auth/help 1060 < toast 1100 < debug panel 99999.",
+      "Keep loading the engraving fonts (Press Start 2P, Bebas Neue, Montserrat 700, Permanent Marker, Pacifico, Noto Emoji) and the script order; never load js/keychain-shapes.js."
+    ],
+    "needs_js_to_change": [
+      "emoji in JS-written labels and toasts (\"🛒 Add to Cart\", \"✓ ✓\" toasts, \"📷 Custom Logo / Image\", \"👤/📱\" profile tag)",
+      "help modal wiring (#btn-header-help has no listener; closeHelpModal is undefined), so the button is hidden",
+      "Razorpay checkout name (\"Laser Keychain\") and theme colour (#00e5ff)",
+      "cart thumbnail is always a rectangle, and the cart shows \"Shape: undefined\" (reads .title, the registry has .name)",
+      "\"Actual size\" caption (app.js:928) is not 1:1 at any viewport; suggest \"Real size: …\"; the circle caption repeats \"Ø 50 mm × Ø 50 mm\" (app.js:951)",
+      "Buy now adds to the cart and clears the design (both buttons call handleAddToCart)"
+    ]
+  },
+  "out_of_scope": [
+    "Removing the login gate",
+    "Pricing and payment logic (₹1 test amount, the cart → 'KEYCHAIN' order bug, payment verification)",
+    "Firestore rules and secrets",
+    "Printer agent and G-code",
+    "Engraving geometry and fonts used by the printer"
+  ],
+  "verification": [
+    "Headless Chrome captures of every screen at 390×844 and 1440×900 before/after",
+    "No new console errors",
+    "Every flow still works: start → create → shape → name → add to cart → cart → (auth modal opens) ; image upload → crop → preview",
+    "Design critique pass on the captures"
+  ],
+  "status_2026_09_26": {
+    "done": "Tokens, type, Tag-i lockup and icons, landing (headline, product gallery, How it works), studio (wood preview, burn ink, fixed price bar on phones, photo flow), cart / sign-in / crop sheets, status page, copy pass. Checked at 360, 390, 412, 844x390, 768, 1024, 1280, 1440 and 1920 px: no sideways scroll, nothing clipped, touch targets >= 44 px, no console errors.",
+    "open": [
+      "Price on the landing page: the only source is the ₹1 test price, so it is not shown yet",
+      "Footer help / WhatsApp / policies links: need real URLs (a bare #hash would trigger the router)",
+      "Header: account, cart and home as three buttons; a single account/help menu needs JS",
+      "Font fallback metrics (size-adjust) for Bricolage and Anek, to remove the reflow when fonts load",
+      "Preview wood colour is tuned to the product photos (Assumed); match it to a real blank",
+      "Customer quote is hidden until a named review with permission exists"
+    ]
+  }
+}

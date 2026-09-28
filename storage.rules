@@ -1,0 +1,23 @@
+rules_version = '2';
+
+// Uploaded keychain images. The web app is anonymous (no user auth), so we
+// allow *create only* under uploads/, constrained by size + content type.
+// Reads/updates/deletes are denied to clients — the Cloud Function (moderation)
+// and the printer agent both access files via the Admin SDK, which bypasses
+// these rules. The browser keeps its own local copy for preview, so it never
+// needs to read back from Storage.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    match /uploads/{session}/{fileName} {
+      allow create: if request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+      allow read, update, delete: if false;
+    }
+
+    // Everything else is locked to server-side (Admin SDK) only.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

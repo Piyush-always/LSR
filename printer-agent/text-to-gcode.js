@@ -15,58 +15,21 @@ const path = require('path');
 // ##       You ONLY need to change the numbers. Do not touch         ##
 // ##       anything else in this file.                               ##
 // ##                                                                 ##
-// #####################################################################
+// Precise shape holder offsets mapped from physical bed measurements (in mm relative to Home)
+const SHAPE_POSITIONS = {
+    circle:    { startOffsetX: 0, startOffsetY: 0 },
+    rectangle: { startOffsetX: 0, startOffsetY: 0 },
+    heart:     { startOffsetX: 0, startOffsetY: 0 },
+};
+
+function getPositionForShape(shape) {
+    const key = String(shape || 'rectangle').toLowerCase().trim();
+    return SHAPE_POSITIONS[key] || SHAPE_POSITIONS.rectangle;
+}
+
 const POSITION = {
-
-    // ================================================================
-    //  THREE REFERENCE POINTS — all distances in millimeters
-    // ================================================================
-    //
-    //   HOME   = (0, 0)    — fixed reference set when agent connects.
-    //                        It's whatever spot the laser head is
-    //                        sitting in at connect time.
-    //
-    //   START  = HOME + (startOffsetX, startOffsetY)
-    //                      — where the keychain ACTUALLY gets engraved.
-    //
-    //   PARK   = HOME + (parkOffsetX, parkOffsetY)
-    //                      — where the laser sits between jobs while
-    //                        waiting for the next order.
-    //
-    // Direction convention (standard GRBL):
-    //   +X = RIGHT      -X = LEFT
-    //   +Y = UP / BACK  -Y = DOWN / FRONT (toward you)
-    //
-    // To change HOME: jog the laser head to the new spot, Ctrl+C the
-    // agent, then restart `node index.js`.
-    //
-    // ================================================================
-
-
-    // ---------------------------------------------------------------
-    // START — where the keychain engraves (distance from HOME)
-    // ---------------------------------------------------------------
-    //   0 / 0    →  engrave at HOME
-    //   30 / 0   →  engrave 30 mm to the RIGHT of HOME
-    //   -10 / 5  →  engrave 10 mm LEFT and 5 mm UP from HOME
-    // ---------------------------------------------------------------
-    startOffsetX: 0,    // mm
-    startOffsetY: 0,    // mm
-
-
-    // ---------------------------------------------------------------
-    // PARK — where the laser sits between jobs (distance from HOME)
-    // ---------------------------------------------------------------
-    //   0 / 0    →  park at HOME (same spot it started)
-    //   100 / 0  →  park 100 mm to the RIGHT of HOME
-    //   0 / 80   →  park 80 mm UP from HOME
-    //
-    // Tip: pick a spot that does NOT sit over the keychain, so you
-    // have space to reach in and grab the finished piece between
-    // jobs.
-    // ---------------------------------------------------------------
-    parkOffsetX: 0,     // mm
-    parkOffsetY: 0,     // mm
+    get startOffsetX() { return SHAPE_POSITIONS.rectangle.startOffsetX; },
+    get startOffsetY() { return SHAPE_POSITIONS.rectangle.startOffsetY; },
 };
 // #####################################################################
 // ##  End of easy-edit settings. Do not edit below this line unless  ##
@@ -88,10 +51,10 @@ const SETTINGS = {
     keychainHeight: 35,      // mm
     cornerRadius: 4,
     borderInset: 2,
-    holeX: 7,                // hole center X
+    holeX: 8,                // hole center X
     holeY: 17.5,             // hole center Y
     holeRadius: 2.5,
-    textLeft: 14,            // text area left edge
+    textLeft: 15,            // text area left edge
     textRight: 70,           // text area right edge
 
     // Curve flattening
@@ -143,7 +106,7 @@ function isEmoji(char) {
 // =================================================================
 // MAIN ENTRY
 // =================================================================
-async function textToGcode(name, orderId, fontId) {
+async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle', customX = null, customY = null) {
     const cleanFontId = FONTS[fontId] ? fontId : DEFAULT_FONT_ID;
     const fontMetric = FONTS[cleanFontId];
     const fontSize = fontMetric.fixedCapHeight;
@@ -154,24 +117,42 @@ async function textToGcode(name, orderId, fontId) {
     // Build all paths in machine coordinates (Y-up, mm)
     const paths = [];
 
-    // 1. Border (rounded rectangle outline)
-    paths.push(roundedRectPolyline(
-        SETTINGS.borderInset,
-        SETTINGS.borderInset,
-        SETTINGS.keychainWidth - 2 * SETTINGS.borderInset,
-        SETTINGS.keychainHeight - 2 * SETTINGS.borderInset,
-        SETTINGS.cornerRadius
-    ));
-
-    // 2. Hole (circle outline)
-    paths.push(circlePolyline(SETTINGS.holeX, SETTINGS.keychainHeight - SETTINGS.holeY, SETTINGS.holeRadius, SETTINGS.circleSegments));
-
-    // 3. Text — char-by-char with mixed text/emoji fonts
-    const textPolylines = buildTextPolylines(cleanName, cleanFontId, fontSize);
-    paths.push(...textPolylines);
+    if (shape === 'circle') {
+        // Circle 50x50 mm
+        paths.push(circlePolyline(25, 25, 23, SETTINGS.circleSegments));
+        // Hole at (25, 42) in Y-up (8 mm from top)
+        paths.push(circlePolyline(25, 42, SETTINGS.holeRadius, SETTINGS.circleSegments));
+        const cx = (customX !== null && customX !== undefined) ? customX : 25;
+        const cy = (customY !== null && customY !== undefined) ? (50 - customY) : 22;
+        const textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize * 0.85, cx, cy, 36);
+        paths.push(...textPolylines);
+    } else if (shape === 'heart') {
+        // Heart 55x50 mm
+        paths.push(heartPolyline(27.5, 24, 50, 44));
+        // Hole at (27.5, 36.5) in Y-up (13.5 mm from top)
+        paths.push(circlePolyline(27.5, 36.5, SETTINGS.holeRadius, SETTINGS.circleSegments));
+        const cx = (customX !== null && customX !== undefined) ? customX : 27.5;
+        const cy = (customY !== null && customY !== undefined) ? (50 - customY) : 24;
+        const textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize * 0.85, cx, cy, 32);
+        paths.push(...textPolylines);
+    } else {
+        // Rectangle 72x35 mm (Default)
+        paths.push(roundedRectPolyline(
+            SETTINGS.borderInset,
+            SETTINGS.borderInset,
+            SETTINGS.keychainWidth - 2 * SETTINGS.borderInset,
+            SETTINGS.keychainHeight - 2 * SETTINGS.borderInset,
+            SETTINGS.cornerRadius
+        ));
+        paths.push(circlePolyline(SETTINGS.holeX, SETTINGS.keychainHeight - SETTINGS.holeY, SETTINGS.holeRadius, SETTINGS.circleSegments));
+        const cx = (customX !== null && customX !== undefined) ? customX : 42;
+        const cy = (customY !== null && customY !== undefined) ? (35 - customY) : 17.5;
+        const textPolylines = buildTextPolylines(cleanName, cleanFontId, fontSize * 1.0, cx, cy, 52);
+        paths.push(...textPolylines);
+    }
 
     // Generate G-code
-    const gcodeText = pathsToGcode(paths, orderId, cleanName, cleanFontId);
+    const gcodeText = pathsToGcode(paths, orderId, cleanName, cleanFontId, shape);
 
     // Save to file
     const outputDir = path.join(__dirname, 'output');
@@ -181,14 +162,14 @@ async function textToGcode(name, orderId, fontId) {
     const gcodePath = path.join(outputDir, `keychain_${orderId}.gcode`);
     fs.writeFileSync(gcodePath, gcodeText);
 
-    console.log(`[GCODE] Generated: ${gcodePath} (${gcodeText.split('\n').length} lines, font=${cleanFontId})`);
+    console.log(`[GCODE] Generated: ${gcodePath} (${gcodeText.split('\n').length} lines, font=${cleanFontId}, shape=${shape})`);
     return gcodePath;
 }
 
 // =================================================================
 // BUILD TEXT POLYLINES — char-by-char, mixed fonts
 // =================================================================
-function buildTextPolylines(text, fontId, fontSize) {
+function buildTextPolylines(text, fontId, baseFontSize, centerX = (SETTINGS.textLeft + SETTINGS.textRight) / 2, centerY = SETTINGS.keychainHeight / 2, maxTextWidth = 52) {
     const textFont = loadFontById(fontId);
     const emojiFont = loadEmojiFont();
 
@@ -210,25 +191,39 @@ function buildTextPolylines(text, fontId, fontSize) {
         }
 
         glyphPlacements.push({ font, glyph, x: cursorX });
-        cursorX += (glyph.advanceWidth / font.unitsPerEm) * fontSize;
+        cursorX += (glyph.advanceWidth / font.unitsPerEm) * baseFontSize;
     }
 
-    const totalWidth = cursorX;
+    const unscaledTotalWidth = cursorX;
+
+    // Scale font down if text exceeds maximum width for shape
+    let effectiveFontSize = baseFontSize;
+    if (unscaledTotalWidth > maxTextWidth && unscaledTotalWidth > 0) {
+        const scale = maxTextWidth / unscaledTotalWidth;
+        effectiveFontSize = baseFontSize * scale;
+    }
+
+    // Re-calculate placement X coordinates with effectiveFontSize
+    let scaledCursorX = 0;
+    for (const item of glyphPlacements) {
+        item.x = scaledCursorX;
+        scaledCursorX += (item.glyph.advanceWidth / item.font.unitsPerEm) * effectiveFontSize;
+    }
+    const totalWidth = scaledCursorX;
 
     // Center horizontally in the text area
-    const textAreaCenter = (SETTINGS.textLeft + SETTINGS.textRight) / 2;
-    const offsetX = textAreaCenter - totalWidth / 2;
+    const offsetX = centerX - totalWidth / 2;
 
     // Center vertically — opentype draws glyphs with baseline at y=0,
     // ascenders going DOWN (Y-down convention). We need Y-up for the laser.
-    // Place baseline at keychainHeight/2 - capHeight*0.35 so the cap-height-tall
+    // Place baseline at centerY - capHeight*0.35 so the cap-height-tall
     // text appears centered.
-    const baselineY = SETTINGS.keychainHeight / 2 - fontSize * 0.35;
+    const baselineY = centerY - effectiveFontSize * 0.35;
 
     const polylines = [];
     for (const { glyph, x } of glyphPlacements) {
         // opentype uses (x, y) with y being the baseline; we pass y=0 and flip later
-        const glyphPath = glyph.getPath(x, 0, fontSize);
+        const glyphPath = glyph.getPath(x, 0, effectiveFontSize);
         const glyphPolylines = flattenOpentypePath(glyphPath);
         for (const poly of glyphPolylines) {
             const transformed = poly.map(([px, py]) => [
@@ -240,6 +235,8 @@ function buildTextPolylines(text, fontId, fontSize) {
     }
     return polylines;
 }
+
+const buildTextPolylinesCustom = buildTextPolylines;
 
 // =================================================================
 // FLATTEN OPENTYPE PATH → POLYLINES
@@ -323,16 +320,29 @@ function roundedRectPolyline(x, y, w, h, r) {
     return pts;
 }
 
+function heartPolyline(cx, cy, w, h) {
+    const pts = [];
+    const segs = 32;
+    for (let i = 0; i <= segs; i++) {
+        const t = (i / segs) * Math.PI * 2;
+        const x = 16 * Math.pow(Math.sin(t), 3);
+        const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+        pts.push([cx + (x / 16) * (w / 2), cy + (y / 16) * (h / 2)]);
+    }
+    return pts;
+}
+
 // =================================================================
 // PATHS → G-CODE
 // =================================================================
-function pathsToGcode(polylines, orderId, name, fontId) {
+function pathsToGcode(polylines, orderId, name, fontId, shape = 'rectangle') {
     const lines = [];
 
     lines.push('; Vector keychain G-code');
     lines.push(`; Order: ${orderId}`);
     lines.push(`; Name: ${name}`);
     lines.push(`; Font: ${fontId}`);
+    lines.push(`; Shape: ${shape}`);
     lines.push(`; Mode: outline only`);
     lines.push(`; Total paths: ${polylines.length}`);
     lines.push('');
@@ -341,15 +351,15 @@ function pathsToGcode(polylines, orderId, name, fontId) {
     // runs in that shared coordinate system, so the laser reliably returns
     // to the exact same HOME after each job. That's what prevents drift
     // between prints.
-    lines.push('G21          ; mm mode');
-    lines.push('G90          ; absolute positioning');
-    lines.push('M5           ; laser off');
-    lines.push(`G0 F${SETTINGS.travelRate}`);
-    lines.push(`G1 F${SETTINGS.feedRate}`);
+    lines.push('G21');          // mm mode
+    lines.push('G90');          // absolute positioning
+    lines.push('M5');           // laser off
+    lines.push(`F${SETTINGS.feedRate}`); // set default feedrate
     lines.push('');
 
-    const dx = POSITION.startOffsetX;
-    const dy = POSITION.startOffsetY;
+    const pos = getPositionForShape(shape);
+    const dx = pos.startOffsetX;
+    const dy = pos.startOffsetY;
 
     for (const polyline of polylines) {
         if (!polyline || polyline.length < 2) continue;
@@ -367,10 +377,10 @@ function pathsToGcode(polylines, orderId, name, fontId) {
 
     lines.push('');
     lines.push('M5           ; laser off');
-    lines.push(`G0 X${POSITION.parkOffsetX.toFixed(3)} Y${POSITION.parkOffsetY.toFixed(3)}     ; move to PARK`);
+    lines.push('G0 X0 Y0     ; return to HOME');
     lines.push('G4 P1        ; wait 1 second before next job');
 
     return lines.join('\n');
 }
 
-module.exports = { textToGcode, SETTINGS, FONTS };
+module.exports = { textToGcode, SETTINGS, FONTS, POSITION, SHAPE_POSITIONS, getPositionForShape };

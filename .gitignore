@@ -10,5 +10,7 @@ printer-agent/service-account.json
 .firebase/
 *.log
 
-# Archives: never commit zips (they have carried service account keys before)
+# Never commit these: zips have carried service account keys; output holds customer engravings and photos
 *.zip
+printer-agent/output/
+.DS_Store

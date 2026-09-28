@@ -7,8 +7,8 @@ This folder holds all QR codes for the laser keychain project and the script tha
 | File | Purpose |
 |------|---------|
 | `generate-qr.js` | Script that generates all QR codes |
-| `laser-inv.png` | QR → `https://laser-inv.web.app` |
-| `create-mytag.png` | QR → `https://create-mytag.invengic.in` |
+| `laser-invengic.png` | QR → `https://laser.invengic.in` |
+| `invengic-app.png` | QR → `https://invengic.web.app` |
 | `README.md` | This file |
 
 ## How to generate / regenerate QR codes
