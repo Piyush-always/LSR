@@ -13,6 +13,12 @@
         "printer-agent/**",
         "qr-codes/**",
         "printer-agent-1.zip",
+        "docs/**",
+        "*.md",
+        "*.rules",
+        "firestore.indexes.json",
+        "package.json",
+        "package-lock.json",
         "README.md"
       ],
       "headers": [
@@ -41,6 +47,12 @@
         "printer-agent/**",
         "qr-codes/**",
         "printer-agent-1.zip",
+        "docs/**",
+        "*.md",
+        "*.rules",
+        "firestore.indexes.json",
+        "package.json",
+        "package-lock.json",
         "README.md"
       ],
       "headers": [
