@@ -150,7 +150,7 @@ function updateAuthUI() {
     if (loggedInPhone) {
         if (btnHeaderAuth) btnHeaderAuth.hidden = true;
         if (userProfileBadge) userProfileBadge.hidden = false;
-        const badgeText = loggedInName ? `👤 ${loggedInName}` : `📱 +91 ${loggedInPhone}`;
+        const badgeText = loggedInName ? `${loggedInName}` : `+91 ${loggedInPhone}`;
         if (userPhoneTag) userPhoneTag.textContent = badgeText;
     } else {
         if (btnHeaderAuth) btnHeaderAuth.hidden = false;
@@ -925,7 +925,7 @@ function updateShapePreviews() {
     // Update Text Preview Hint
     const textPreviewHint = document.querySelector('#keychain-preview-box .preview-hint') || document.querySelector('#screen-name .preview-hint');
     if (textPreviewHint) {
-        textPreviewHint.textContent = `Actual size · ${shape.dimLabelX} × ${shape.dimLabelY}`;
+        textPreviewHint.textContent = `Real size: ${shape.desc}`;
     }
 
     // 2. Update Image Preview Container & SVG Overlay
@@ -948,7 +948,7 @@ function updateShapePreviews() {
     // Update Image Preview Hint
     const imgPreviewHint = document.querySelector('#img-preview-box .preview-hint') || document.querySelector('#screen-image .preview-hint');
     if (imgPreviewHint) {
-        imgPreviewHint.textContent = `Engraves inside marked area · ${shape.dimLabelX} × ${shape.dimLabelY}`;
+        imgPreviewHint.textContent = `Engraves inside the marked area · ${shape.desc}`;
     }
 
     positionImageCanvas();
@@ -1594,15 +1594,20 @@ async function uploadImageBlobs() {
 }
 
 // ===== PAYMENT FLOW =====
-btnPay.addEventListener('click', () => {
-    if (nameInput.value.trim().length === 0) return;
-    handleAddToCart('text');
-});
+// Buy now pays for the design on screen only; the cart keeps its items.
+function handleBuyNow(mode) {
+    if (mode === 'text' && nameInput.value.trim().length === 0) return;
+    if (mode === 'image' && !imageProcessor.hasImage) return;
+    const pay = () => initiatePayment(mode, getLoggedInUserPhone());
+    if (getLoggedInUserPhone()) {
+        pay();
+    } else {
+        openAuthModal(pay);
+    }
+}
 
-btnPayImage.addEventListener('click', () => {
-    if (!imageProcessor.hasImage) return;
-    handleAddToCart('image');
-});
+btnPay.addEventListener('click', () => handleBuyNow('text'));
+btnPayImage.addEventListener('click', () => handleBuyNow('image'));
 
 function setPaymentMessage(title, sub) {
     paymentTitle.textContent = title;
@@ -1625,7 +1630,7 @@ async function initiatePayment(mode, userPhone) {
 
     try {
         let payload, displayName;
-        const rawPhone = userPhone || '';
+        const rawPhone = userPhone || getLoggedInUserPhone() || '';
         const phone_number = rawPhone;
         const phone_e164 = rawPhone ? ('91' + rawPhone) : '';
 
@@ -1633,7 +1638,7 @@ async function initiatePayment(mode, userPhone) {
         const totalCartQty = (window.InvengicCart && window.InvengicCart.getTotalCount()) || 0;
         const totalAmount = (window.InvengicCart && window.InvengicCart.getSubtotal()) || 1;
 
-        if (mode === 'cart' || (cartItems.length > 0 && mode !== 'single_direct')) {
+        if (mode === 'cart') {
             setPaymentMessage(`Preparing ${totalCartQty} keychain order…`, 'Packaging custom designs for checkout.');
 
             payload = {
@@ -1743,7 +1748,7 @@ async function initiatePayment(mode, userPhone) {
 function openRazorpayCheckout({ displayName, mode, payload, orderId }) {
     const options = {
         key: RAZORPAY_LIVE_KEY_ID,
-        name: 'Laser Keychain',
+        name: 'Invengic Studio',
         description: mode === 'image' ? 'Custom image keychain' : ('Custom keychain: "' + displayName + '"'),
         prefill: {
             name: mode === 'image' ? 'Customer' : displayName,
@@ -1753,7 +1758,7 @@ function openRazorpayCheckout({ displayName, mode, payload, orderId }) {
             enabled: true,
             max_count: 4,
         },
-        theme: { color: '#00e5ff' },
+        theme: { color: '#ff5b1f' },
         handler: async function (response) {
             handlePaymentSuccess(response, payload.firestoreId || '', displayName, mode);
         },
@@ -2033,7 +2038,7 @@ function startOwnOrderListener(firestoreId) {
             const data = doc.data();
             updateOrderProgress(data.status);
             if (data.status === 'done') {
-                successFooter.textContent = 'Ready for pickup ✨';
+                successFooter.textContent = 'Ready for pickup';
                 fireNotificationOnDone(data.name || (activeOrder && activeOrder.name) || 'Your keychain');
                 activeOrder = null;
                 localStorage.removeItem('activeOrder');
@@ -2069,7 +2074,7 @@ function fireNotificationOnTurn(name) {
     if (notifyOnTurn) return;
     notifyOnTurn = true;
     if ('Notification' in window && Notification.permission === 'granted') {
-        try { new Notification('Your keychain is printing now! 🔥', { body: name ? `Engraving "${name}"` : '' }); } catch (e) { /* ignore */ }
+        try { new Notification('Your keychain is being engraved', { body: name ? `Engraving "${name}"` : '' }); } catch (e) { /* ignore */ }
     }
 }
 
@@ -2077,7 +2082,7 @@ function fireNotificationOnDone(name) {
     if (notifyOnDone) return;
     notifyOnDone = true;
     if ('Notification' in window && Notification.permission === 'granted') {
-        try { new Notification('Done! Pick up your keychain ✨', { body: name ? `"${name}" is ready` : '' }); } catch (e) { /* ignore */ }
+        try { new Notification('Your keychain is ready to pick up', { body: name ? `"${name}" is ready` : '' }); } catch (e) { /* ignore */ }
     }
 }
 
@@ -2202,7 +2207,7 @@ function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     let icon = '✓';
-    if (type === 'warning') icon = '⚠️';
+    if (type === 'warning') icon = '!';
     if (type === 'error') icon = '✕';
     toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
     toastContainer.appendChild(toast);
@@ -2253,7 +2258,7 @@ function updateCartBadge() {
 
 function updateAddToCartButtonsLabel() {
     const isEditing = window.InvengicCart && window.InvengicCart.getEditingItemId();
-    const label = isEditing ? '✓ Update Item' : '🛒 Add to Cart';
+    const label = isEditing ? 'Update item' : 'Add to cart';
     if (btnAddCartText) btnAddCartText.innerHTML = label;
     if (btnAddCartImage) btnAddCartImage.innerHTML = label;
 }
@@ -2280,9 +2285,11 @@ function renderCartDrawer() {
     if (items.length === 0) {
         cartItemsContainer.innerHTML = `
             <div class="cart-empty-state">
-                <div class="cart-empty-icon">🛒</div>
-                <h4>YOUR CART IS EMPTY</h4>
-                <p>Customize keychains and add them to your cart!</p>
+                <div class="cart-empty-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+                </div>
+                <h4>Your cart is empty</h4>
+                <p>Design a keychain and add it here.</p>
                 <button type="button" class="btn btn-primary" onclick="closeCartDrawer(); showScreen('create');">
                     Start Creating
                 </button>
@@ -2295,17 +2302,20 @@ function renderCartDrawer() {
 
     items.forEach((item) => {
         const shapeObj = window.getShape ? window.getShape(item.shapeId) : null;
-        const shapeTitle = shapeObj ? shapeObj.title : (item.shapeId || 'Rectangle');
+        const shapeTitle = shapeObj ? shapeObj.name : 'Rectangle';
         const fontObj = item.fontId && window.KEYCHAIN_FONTS ? window.KEYCHAIN_FONTS[item.fontId] : null;
 
         let thumbMarkup = '';
         if (item.mode === 'image' && item.thumbUrl) {
             thumbMarkup = `<img src="${item.thumbUrl}" alt="Custom photo preview" class="cart-item-thumb" />`;
         } else {
+            const s = shapeObj || window.getShape('rectangle');
+            const t = s.textArea || { x: s.width / 2, y: s.height / 2 };
             thumbMarkup = `
-                <svg viewBox="0 0 72 35" class="cart-item-thumb">
-                    <rect x="2" y="2" width="68" height="31" rx="4" fill="none" stroke="#6366f1" stroke-width="2.5" />
-                    <text x="36" y="20" font-family="${fontObj ? fontObj.family : 'Inter'}" font-size="10" text-anchor="middle" dominant-baseline="middle" fill="#0f172a" font-weight="bold">
+                <svg viewBox="0 0 ${s.width} ${s.height}" class="cart-item-thumb" aria-hidden="true">
+                    <path d="${s.borderPathD}" fill="none" stroke="currentColor" stroke-width="1.6" />
+                    <circle cx="${s.hole.cx}" cy="${s.hole.cy}" r="${s.hole.r}" fill="none" stroke="currentColor" stroke-width="1.2" />
+                    <text x="${t.x}" y="${t.y}" font-family="${fontObj ? fontObj.family : 'inherit'}" font-size="${Math.min(s.width, s.height) * 0.28}" text-anchor="middle" dominant-baseline="central" fill="currentColor">
                         ${(item.name || 'CUSTOM').slice(0, 7)}
                     </text>
                 </svg>
@@ -2322,7 +2332,7 @@ function renderCartDrawer() {
             <div class="cart-item-info">
                 <div class="cart-item-top">
                     <div>
-                        <div class="cart-item-title">${item.mode === 'image' ? '📷 Custom Logo / Image' : item.name}</div>
+                        <div class="cart-item-title">${item.mode === 'image' ? 'Photo or logo' : item.name}</div>
                         <div class="cart-item-details">
                             <span>Shape: <strong>${shapeTitle}</strong></span>
                             ${item.mode === 'text' && fontObj ? `<span>Font: <strong>${fontObj.label}</strong></span>` : ''}
@@ -2372,7 +2382,7 @@ function renderCartDrawer() {
             const item = items.find(i => i.id === id);
             if (item) {
                 if (!window.InvengicCart.canAddQuantity(1)) {
-                    showToast('⚠️ Maximum 20 keychains limit reached!', 'warning');
+                    showToast('You can order up to 20 keychains at a time.', 'warning');
                     return;
                 }
                 window.InvengicCart.updateQuantity(id, item.quantity + 1);
@@ -2458,7 +2468,7 @@ function handleAddToCart(mode) {
 
     const editingId = window.InvengicCart.getEditingItemId();
     if (!editingId && !window.InvengicCart.canAddQuantity(1)) {
-        showToast('⚠️ Maximum 20 keychains limit reached per order!', 'warning');
+        showToast('You can order up to 20 keychains at a time.', 'warning');
         if (cartLimitBanner) cartLimitBanner.hidden = false;
         openCartDrawer();
         return;
@@ -2498,9 +2508,9 @@ function handleAddToCart(mode) {
     window.InvengicCart.addItem(spec);
     
     if (editingId) {
-        showToast('✓ Cart item updated!', 'success');
+        showToast('Cart updated.', 'success');
     } else {
-        showToast('✓ Custom keychain added to cart!', 'success');
+        showToast('Added to your cart.', 'success');
     }
 
     window.InvengicCart.setEditingItem(null);
