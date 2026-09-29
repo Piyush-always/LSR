@@ -1,0 +1,6 @@
+# Local build output and the Python environment: rebuild with .venv\Scripts\python build.py
+.venv/
+dist/
+build/
+__pycache__/
+*.spec
