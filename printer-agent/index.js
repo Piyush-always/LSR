@@ -3,7 +3,9 @@ const path = require('path');
 const fs = require('fs');
 const { generateKeychainImage } = require('./generate-image');
 const { imageToGcode } = require('./image-to-gcode');
-const { textToGcode, POSITION, getPositionForShape } = require('./text-to-gcode');
+const { textToGcode } = require('./text-to-gcode');
+const { holderCentre } = require('./holders');
+const readline = require('readline');
 
 // Engraving mode: 'vector' (filled letters via opentype) or 'raster' (pixel scan)
 const ENGRAVING_MODE = process.env.ENGRAVING_MODE || 'vector';
@@ -23,7 +25,7 @@ const MACHINE_ID = process.env.MACHINE_ID || CONFIG.machineId || 'laser-001';
 const SERVICE_ACCOUNT_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(__dirname, 'service-account.json');
 const STORAGE_BUCKET = process.env.STORAGE_BUCKET || 'laser-keychain-official.firebasestorage.app';
 const RECONNECT_INTERVAL_MS = 5000;
-const BETWEEN_JOBS_DELAY_MS = 5000;
+const CONFIRM_FRESH_BLANK = CONFIG.confirmFreshBlank !== false;   // ask before a holder is reused
 
 if (admin.apps.length === 0) {
     if (fs.existsSync(SERVICE_ACCOUNT_PATH)) {
@@ -110,12 +112,17 @@ async function start() {
 }
 
 function printConfigBanner() {
-    const sx = POSITION.startOffsetX.toFixed(3);
-    const sy = POSITION.startOffsetY.toFixed(3);
-    console.log(`[CONFIG] HOME    = (0.000, 0.000)               (laser's position at connect time)`);
-    console.log(`[CONFIG] START   = HOME + (${sx}, ${sy}) mm`);
-    console.log(`[CONFIG] After each print the laser returns to HOME.`);
-    console.log(`[CONFIG] Edit START in printer-agent/text-to-gcode.js  POSITION block.`);
+    console.log(`[CONFIG] HOME = (0, 0): where the head was when the agent connected.`);
+    for (const shape of ['rectangle', 'circle', 'heart']) {
+        const c = holderCentre(shape);
+        console.log(`[CONFIG] ${shape.padEnd(9)} holder: ` + (c
+            ? `centre (${c.x.toFixed(1)}, ${c.y.toFixed(1)}) mm from HOME`
+            : 'NOT CALIBRATED, engraves at HOME. Use Laser Queue > Calibrate holders.'));
+    }
+    console.log(`[CONFIG] After each keychain the head returns to HOME.`);
+    if (CONFIRM_FRESH_BLANK) {
+        console.log(`[CONFIG] Put a fresh blank in every holder now. Before a holder is used again you'll be asked to reload it.`);
+    }
     console.log('');
 }
 
@@ -187,7 +194,6 @@ async function processQueue() {
     }
 
     isProcessing = true;
-    let firstJob = true;
 
     try {
         while (laserConnected) {
@@ -215,13 +221,6 @@ async function processQueue() {
             }
 
             const matchingDoc = matchingDocs[0];
-
-            // Give the operator a few seconds to swap the keychain blank
-            if (!firstJob && BETWEEN_JOBS_DELAY_MS > 0) {
-                console.log(`[QUEUE] Pausing ${BETWEEN_JOBS_DELAY_MS / 1000}s before next job — swap the keychain now.\n`);
-                await sleep(BETWEEN_JOBS_DELAY_MS);
-            }
-            firstJob = false;
 
             const order = { id: matchingDoc.id, ...matchingDoc.data() };
 
@@ -252,20 +251,23 @@ async function processQueue() {
     }
 }
 
-// ===== PROCESS SINGLE ORDER =====
-// Throws on any failure — caller is responsible for reverting the order.
+// ===== PROCESS ONE ORDER =====
+// An order is one keychain, or a cart of several (each engraved at its own
+// shape's holder). Throws on any failure; the caller puts the order back in the
+// queue. A cart resumes from items_done, so finished keychains are never
+// engraved twice.
 async function processOrder(order) {
-    const shape = order.shape || 'rectangle';
-    const targetPos = getPositionForShape(shape);
-    const sx = targetPos.startOffsetX.toFixed(3);
-    const sy = targetPos.startOffsetY.toFixed(3);
+    const units = printUnits(order);
+    const isCart = order.mode === 'cart';
+    const startAt = isCart ? Math.min(order.items_done || 0, units.length) : 0;
     const displayName = order.name || (order.mode === 'image' ? 'image upload' : 'keychain');
 
     console.log(`\n[PRINT] ============================`);
     console.log(`[PRINT] Printing: "${displayName}" (${order.mode || 'text'})`);
-    console.log(`[PRINT] Shape Holder: ${shape.toUpperCase()}`);
     console.log(`[PRINT] Queue Position: #${order.queue_position}`);
-    console.log(`[PRINT] Start position: (${sx}, ${sy}) mm    (returns to HOME after)`);
+    if (units.length > 1) {
+        console.log(`[PRINT] Keychains: ${units.length}${startAt ? `, resuming at ${startAt + 1}` : ''}`);
+    }
     console.log(`[PRINT] ============================`);
 
     // Mark as printing
@@ -278,41 +280,92 @@ async function processOrder(order) {
         startedAt: Date.now(),
         progress: 0,
     };
+    await publishStatus({ current: currentJob });
+    logEvent(`Printing #${order.queue_position} — ${displayName}`);
+
+    for (let i = startAt; i < units.length; i++) {
+        const label = units.length > 1 ? `${displayName} (${i + 1} of ${units.length})` : displayName;
+        await ensureFreshBlank(units[i].shape);
+        await engraveUnit(units[i], units.length > 1 ? `${order.id}_${i + 1}` : order.id, label);
+        if (isCart) {
+            await db.collection('orders').doc(order.id).update({ items_done: i + 1 });
+        }
+    }
+
+    // Only reached if the laser actually finished every keychain
+    await db.collection('orders').doc(order.id).update({
+        status: 'done',
+        printed_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    currentJob = null;
+    await publishStatus({ current: null });
+    logEvent(`Done — ${displayName}`);
+    console.log(`[DONE] ✓ Keychain for "${displayName}" completed!\n`);
+}
+
+// The keychains to engrave for an order, one entry per physical keychain.
+function printUnits(order) {
+    if (order.mode === 'cart') {
+        const units = [];
+        for (const item of order.items || []) {
+            const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
+            for (let n = 0; n < quantity; n++) units.push({ ...item, shape: item.shape || 'rectangle' });
+        }
+        if (units.length === 0) throw new Error('Cart order has no keychains');
+        return units;
+    }
+    return [{
+        mode: order.mode === 'image' ? 'image' : 'text',
+        shape: order.shape || 'rectangle',
+        name: order.name,
+        fontId: order.fontId,
+        textPos: order.textPos || null,
+        printImageBase64: order.printImageBase64 || null,
+        printImagePath: order.printImagePath || null,
+    }];
+}
+
+// Engrave one keychain on its shape's holder; the G-code returns to HOME at the end.
+async function engraveUnit(unit, fileId, label) {
+    const centre = holderCentre(unit.shape);
+    console.log(`[PRINT] ${label}: ${unit.shape.toUpperCase()} holder ` + (centre
+        ? `at (${centre.x.toFixed(1)}, ${centre.y.toFixed(1)}) mm`
+        : '(not calibrated: engraving at HOME)'));
+    currentJob.name = label;
+    currentJob.progress = 0;
     lastProgressAt = 0;
     await publishStatus({ current: currentJob });
-    logEvent(`Printing #${order.queue_position} — ${displayName} (${shape})`);
 
     // Sanity: where is the laser physically right now?
     await logCurrentPosition('Current position');
 
-    // Generate G-code — branch on the order type.
     let gcodePath;
-    if (order.mode === 'image') {
-        // Uploaded-image order: fetch the pre-processed black/white bitmap from
-        // Cloud Storage and rasterise it into the keychain's image area.
-        console.log('[STEP 1] Downloading uploaded image...');
-        const localImage = await downloadPrintImage(order);
-        console.log(`[STEP 2] Generating raster G-code from image (shape=${shape})...`);
-        gcodePath = await imageToGcode(localImage, order.id, shape);
+    if (unit.mode === 'image') {
+        console.log('[STEP 1] Preparing the photo...');
+        const localImage = await downloadPrintImage(unit, fileId);
+        console.log(`[STEP 2] Generating raster G-code from image (shape=${unit.shape})...`);
+        gcodePath = await imageToGcode(localImage, fileId, unit.shape);
     } else {
-        // Text/name order (mode 'text' or legacy orders with no mode field).
-        const label = order.name || '(unnamed)';
+        const text = unit.name || '(unnamed)';
         console.log('[STEP 1] Generating keychain image...');
-        generateKeychainImage(label, order.id);
+        generateKeychainImage(text, fileId);
 
         if (ENGRAVING_MODE === 'vector') {
-            const fontId = order.fontId || 'pixel';
-            console.log(`[STEP 2] Generating vector G-code (font=${fontId}, shape=${shape})...`);
-            gcodePath = await textToGcode(label, order.id, fontId, shape);
+            const fontId = unit.fontId || 'pixel';
+            const at = unit.textPos || {};
+            const where = unit.textPos ? `, text at (${at.x}, ${at.y}) mm` : '';
+            console.log(`[STEP 2] Generating vector G-code (font=${fontId}, shape=${unit.shape}${where})...`);
+            gcodePath = await textToGcode(text, fileId, fontId, unit.shape, at.x ?? null, at.y ?? null);
         } else {
-            console.log(`[STEP 2] Generating raster G-code (shape=${shape})...`);
-            const imagePath = generateKeychainImage(label, order.id);
-            gcodePath = await imageToGcode(imagePath, order.id, shape);
+            console.log(`[STEP 2] Generating raster G-code (shape=${unit.shape})...`);
+            const imagePath = generateKeychainImage(text, fileId);
+            gcodePath = await imageToGcode(imagePath, fileId, unit.shape);
         }
     }
 
     // Step 3: Send to laser — must succeed or we throw
     console.log('[STEP 3] Sending to laser printer...');
+    usedHolders.add(unit.shape);   // from the first burn, this blank is no longer fresh
     await sendGcodeFile(gcodePath, (current, total) => {
         const percent = Math.round((current / total) * 100);
         process.stdout.write(`\r[LASER] Progress: ${percent}% (${current}/${total} commands)`);
@@ -330,41 +383,63 @@ async function processOrder(order) {
 
     // Sanity: did the laser actually return to HOME?
     await logCurrentPosition('Position after print');
-
-    // Only reached if laser actually finished
-    await db.collection('orders').doc(order.id).update({
-        status: 'done',
-        printed_at: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    currentJob = null;
-    await publishStatus({ current: null });
-    logEvent(`Done — ${displayName}`);
-    console.log(`[DONE] ✓ Keychain for "${displayName}" completed!\n`);
 }
 
-// Download an image order's pre-processed B&W bitmap from Cloud Storage to a
-// local file for rasterising. Throws on missing path / download failure (the
-// caller reverts the order to queued and retries).
-async function downloadPrintImage(order) {
+// ===== FRESH BLANKS =====
+// Every holder is assumed loaded when the agent starts. Once a holder has been
+// engraved, the next keychain on it waits until the operator confirms a fresh
+// blank: Enter in this window, or "Fresh blank loaded" in Laser Queue (which
+// sends "next").
+const usedHolders = new Set();
+let operatorInput = null;
+
+function waitForOperator() {
+    if (!operatorInput) operatorInput = readline.createInterface({ input: process.stdin });
+    return new Promise((resolve) => {
+        const onLine = (line) => {
+            if (/stop/i.test(line)) return;   // a stop request is handled by SIGINT, not as a confirmation
+            operatorInput.off('line', onLine);
+            resolve();
+        };
+        operatorInput.on('line', onLine);
+    });
+}
+
+async function ensureFreshBlank(shape) {
+    if (!CONFIRM_FRESH_BLANK || !usedHolders.has(shape)) return;
+    const holder = shape.toUpperCase();
+    console.log(`\n[BLANK] Load a fresh ${holder} blank, then press Enter (or "Fresh blank loaded" in Laser Queue).`);
+    logEvent(`Waiting for a fresh ${shape} blank`);
+    await publishStatus({ waitingFor: { holder: shape, since: Date.now() } });
+    await waitForOperator();
+    usedHolders.delete(shape);
+    await publishStatus({ waitingFor: null });
+    console.log(`[BLANK] ${holder} blank loaded. Continuing.`);
+}
+
+// Write a photo keychain's black/white print image to a local file for
+// rasterising. Throws on missing image / download failure (the caller puts the
+// order back in the queue).
+async function downloadPrintImage(unit, fileId) {
     const outputDir = path.join(__dirname, 'output');
     if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
     }
-    const localPath = path.join(outputDir, `upload_${order.id}.png`);
+    const localPath = path.join(outputDir, `upload_${fileId}.png`);
 
-    if (order.printImageBase64) {
-        const base64Data = order.printImageBase64.replace(/^data:image\/\w+;base64,/, '');
+    if (unit.printImageBase64) {
+        const base64Data = unit.printImageBase64.replace(/^data:image\/\w+;base64,/, '');
         const buffer = Buffer.from(base64Data, 'base64');
         fs.writeFileSync(localPath, buffer);
         console.log(`[IMAGE] Decoded Base64 image → ${localPath}`);
         return localPath;
     }
 
-    if (!order.printImagePath) {
+    if (!unit.printImagePath) {
         throw new Error('Image order is missing printImagePath');
     }
-    await admin.storage().bucket().file(order.printImagePath).download({ destination: localPath });
-    console.log(`[IMAGE] Downloaded ${order.printImagePath} → ${localPath}`);
+    await admin.storage().bucket().file(unit.printImagePath).download({ destination: localPath });
+    console.log(`[IMAGE] Downloaded ${unit.printImagePath} → ${localPath}`);
     return localPath;
 }
 
@@ -403,9 +478,19 @@ process.on('SIGINT', async () => {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     if (firestoreUnsubscribe) firestoreUnsubscribe();
     laserConnected = false;
+    // Put an unfinished order back in the queue so it isn't left stuck in "printing"
+    // (a cart keeps items_done, so it resumes at the keychain that was interrupted).
+    if (currentJob && currentJob.orderId) {
+        try {
+            await db.collection('orders').doc(currentJob.orderId).update({ status: 'queued' });
+            console.log(`[EXIT] Order ${currentJob.orderId} put back in the queue`);
+        } catch (e) {
+            console.error(`[EXIT] Could not put the order back in the queue: ${e.message}`);
+        }
+    }
     // Best-effort: mark the agent offline so the website updates immediately.
-    try { await publishStatus({ current: null }); } catch (e) { /* ignore */ }
-    disconnect();
+    try { await publishStatus({ current: null, waitingFor: null }); } catch (e) { /* ignore */ }
+    await disconnect();   // laser off, back to HOME, then close
     process.exit(0);
 });
 

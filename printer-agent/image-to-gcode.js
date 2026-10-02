@@ -1,7 +1,7 @@
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const fs = require('fs');
 const path = require('path');
-const { POSITION, getPositionForShape } = require('./text-to-gcode');
+const { getPositionForShape } = require('./text-to-gcode');
 
 // =====================================================================
 //  IMAGE → G-CODE — raster engraving for uploaded logo/line-art images.
@@ -16,11 +16,16 @@ const { POSITION, getPositionForShape } = require('./text-to-gcode');
 //  the shared POSITION block in text-to-gcode.js so text + image align.
 // =====================================================================
 
-const KEYCHAIN_HEIGHT = 35;   // mm — mirror of js/keychain-layout.js
-
-// Engrave rectangle in SVG/web coordinates (Y-down, origin at keychain top-left).
-// Mirror of window.KEYCHAIN_IMAGE_AREA.
-const IMAGE_AREA = { x: 13, y: 4, width: 56, height: 27 };
+// Per shape: keychain height (mm, to flip Y) and the engrave area in SVG/web
+// coordinates (Y-down, origin at the keychain's top-left). Mirror of height and
+// imageArea in js/keychain-layout.js: the photo the customer placed fills
+// exactly this area.
+const SHAPE_LAYOUT = {
+    rectangle: { height: 35, area: { x: 13, y: 4, width: 56, height: 27 } },
+    circle: { height: 50, area: { x: 2, y: 2, width: 46, height: 46 } },
+    heart: { height: 50, area: { x: 2, y: 2, width: 51, height: 44 } },
+};
+const IMAGE_AREA = SHAPE_LAYOUT.rectangle.area;
 
 const SETTINGS = {
     feedRate: 1500,         // mm/min — engraving speed (lower = deeper/darker)
@@ -43,10 +48,12 @@ const SETTINGS = {
  */
 async function imageToGcode(imagePath, orderId, shape = 'rectangle') {
     const img = await loadImage(imagePath);
+    const layout = SHAPE_LAYOUT[shape] || SHAPE_LAYOUT.rectangle;
+    const area = layout.area;
 
     // Engrave-resolution grid — same math as the web client.
-    const cols = Math.round(IMAGE_AREA.width / SETTINGS.pixelSize);
-    const rows = Math.round(IMAGE_AREA.height / SETTINGS.pixelSize);
+    const cols = Math.round(area.width / SETTINGS.pixelSize);
+    const rows = Math.round(area.height / SETTINGS.pixelSize);
 
     const canvas = createCanvas(cols, rows);
     const ctx = canvas.getContext('2d');
@@ -58,16 +65,16 @@ async function imageToGcode(imagePath, orderId, shape = 'rectangle') {
     const dy = pos.startOffsetY;
     // Machine Y (Y-up) of the image area's TOP edge. row 0 sits here; deeper
     // rows step downward (decreasing machine Y).
-    const areaTopY = KEYCHAIN_HEIGHT - IMAGE_AREA.y;   // 35 - 4 = 31
+    const areaTopY = layout.height - area.y;   // rectangle: 35 - 4 = 31
 
-    const machineX = (col) => (IMAGE_AREA.x + col * SETTINGS.pixelSize + dx);
+    const machineX = (col) => (area.x + col * SETTINGS.pixelSize + dx);
     const machineY = (row) => (areaTopY - row * SETTINGS.pixelSize + dy);
 
     const gcode = [];
     gcode.push('; Raster keychain G-code (uploaded image)');
     gcode.push(`; Order: ${orderId}`);
     gcode.push(`; Grid: ${cols} x ${rows} px @ ${SETTINGS.pixelSize} mm/px`);
-    gcode.push(`; Engrave area: ${IMAGE_AREA.width} x ${IMAGE_AREA.height} mm at (${IMAGE_AREA.x}, ${IMAGE_AREA.y})`);
+    gcode.push(`; Engrave area (${shape}): ${area.width} x ${area.height} mm at (${area.x}, ${area.y})`);
     gcode.push('; Convention: white pixel = burn. HOME set at connect (no G92 here).');
     gcode.push('');
     gcode.push('G21          ; mm mode');
@@ -138,4 +145,4 @@ async function imageToGcode(imagePath, orderId, shape = 'rectangle') {
     return gcodePath;
 }
 
-module.exports = { imageToGcode, SETTINGS, IMAGE_AREA };
+module.exports = { imageToGcode, SETTINGS, IMAGE_AREA, SHAPE_LAYOUT };

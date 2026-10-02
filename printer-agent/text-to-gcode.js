@@ -6,6 +6,7 @@
 const opentype = require('opentype.js');
 const fs = require('fs');
 const path = require('path');
+const { holderOffset } = require('./holders');
 
 // #####################################################################
 // ##                                                                 ##
@@ -15,7 +16,8 @@ const path = require('path');
 // ##       You ONLY need to change the numbers. Do not touch         ##
 // ##       anything else in this file.                               ##
 // ##                                                                 ##
-// Precise shape holder offsets mapped from physical bed measurements (in mm relative to Home)
+// Holder positions now come from holders.json (Laser Queue > Calibrate holders).
+// These offsets are only used for a shape whose holder hasn't been calibrated.
 const SHAPE_POSITIONS = {
     circle:    { startOffsetX: 0, startOffsetY: 0 },
     rectangle: { startOffsetX: 0, startOffsetY: 0 },
@@ -24,7 +26,7 @@ const SHAPE_POSITIONS = {
 
 function getPositionForShape(shape) {
     const key = String(shape || 'rectangle').toLowerCase().trim();
-    return SHAPE_POSITIONS[key] || SHAPE_POSITIONS.rectangle;
+    return holderOffset(key) || SHAPE_POSITIONS[key] || SHAPE_POSITIONS.rectangle;
 }
 
 const POSITION = {
@@ -128,7 +130,7 @@ async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle',
         paths.push(...textPolylines);
     } else if (shape === 'heart') {
         // Heart 55x50 mm
-        paths.push(heartPolyline(27.5, 24, 50, 44));
+        paths.push(heartPolyline());
         // Hole at (27.5, 36.5) in Y-up (13.5 mm from top)
         paths.push(circlePolyline(27.5, 36.5, SETTINGS.holeRadius, SETTINGS.circleSegments));
         const cx = (customX !== null && customX !== undefined) ? customX : 27.5;
@@ -320,14 +322,28 @@ function roundedRectPolyline(x, y, w, h, r) {
     return pts;
 }
 
-function heartPolyline(cx, cy, w, h) {
+// The heart outline the customer sees: borderPathD of the heart in
+// js/keychain-layout.js (cubic Béziers, Y-down, 55 x 50 mm). Keep in sync.
+const HEART_PATH = [   // [x0, y0, x1, y1, x2, y2, x3, y3]
+    [27.5, 46, 14, 36, 2, 26, 2, 15],
+    [2, 15, 2, 7, 8, 2, 16, 2],
+    [16, 2, 21.5, 2, 25.5, 5.5, 27.5, 9.5],
+    [27.5, 9.5, 29.5, 5.5, 33.5, 2, 39, 2],
+    [39, 2, 47, 2, 53, 7, 53, 15],
+    [53, 15, 53, 26, 41, 36, 27.5, 46],
+];
+const HEART_HEIGHT = 50;
+
+function heartPolyline(segmentsPerCurve = 16) {
     const pts = [];
-    const segs = 32;
-    for (let i = 0; i <= segs; i++) {
-        const t = (i / segs) * Math.PI * 2;
-        const x = 16 * Math.pow(Math.sin(t), 3);
-        const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
-        pts.push([cx + (x / 16) * (w / 2), cy + (y / 16) * (h / 2)]);
+    for (const [x0, y0, x1, y1, x2, y2, x3, y3] of HEART_PATH) {
+        for (let i = pts.length ? 1 : 0; i <= segmentsPerCurve; i++) {
+            const t = i / segmentsPerCurve;
+            const u = 1 - t;
+            const x = u * u * u * x0 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3;
+            const y = u * u * u * y0 + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y3;
+            pts.push([x, HEART_HEIGHT - y]);   // Y-down (web) → Y-up (machine)
+        }
     }
     return pts;
 }

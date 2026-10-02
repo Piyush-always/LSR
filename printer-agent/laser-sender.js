@@ -28,6 +28,11 @@ const COMMAND_TIMEOUT_MS = 120000; // 2 min — GRBL holds 'ok' while planner bu
 let serialPort = null;
 let parser = null;
 let isConnected = false;
+let stopRequested = false;            // set on shutdown: sendGcodeFile stops before its next line
+let inFlight = Promise.resolve();     // the command currently waiting for 'ok'
+
+const SHUTDOWN_STEP_TIMEOUT_MS = 5000;   // laser off / queue the move home
+const SHUTDOWN_HOME_TIMEOUT_MS = 30000;  // wait for the head to finish moving home
 
 /**
  * Connect to the laser printer via serial port.
@@ -186,7 +191,7 @@ async function sendInitSequence() {
  * Handles errors, alarms, and timeouts properly.
  */
 function sendCommand(command) {
-    return new Promise((resolve, reject) => {
+    const sent = new Promise((resolve, reject) => {
         if (!serialPort || !serialPort.isOpen) {
             return reject(new Error('Serial port not open'));
         }
@@ -221,6 +226,8 @@ function sendCommand(command) {
         parser.on('data', onData);
         serialPort.write(command + '\n');
     });
+    inFlight = sent.catch(() => {});
+    return sent;
 }
 
 /**
@@ -245,6 +252,9 @@ async function sendGcodeFile(gcodePath, onProgress) {
     console.log(`[SERIAL] Sending ${totalLines} G-code commands...`);
 
     for (let i = 0; i < totalLines; i++) {
+        if (stopRequested) {
+            throw new Error('Stopped by the operator');
+        }
         const line = lines[i];
         await sendCommand(line);
 
@@ -303,16 +313,38 @@ function forceClose() {
  * Disconnect from the laser printer (graceful shutdown)
  */
 async function disconnect() {
-    if (serialPort && serialPort.isOpen) {
+    stopRequested = true;
+    if (serialPort && serialPort.isOpen && isConnected) {
+        // Let the line in progress finish, then laser off and back to HOME. G4 (dwell)
+        // is acknowledged only after every queued move has run, so its 'ok' means the
+        // head is at HOME. Only then close: closing the port can reset the board,
+        // which would leave the head wherever it stopped.
+        try {
+            await withTimeout(inFlight, SHUTDOWN_STEP_TIMEOUT_MS);
+            await withTimeout(sendCommand('M5'), SHUTDOWN_STEP_TIMEOUT_MS);
+            await withTimeout(sendCommand('G0 X0 Y0'), SHUTDOWN_STEP_TIMEOUT_MS);
+            await withTimeout(sendCommand('G4 P0.1'), SHUTDOWN_HOME_TIMEOUT_MS);
+            console.log('[SERIAL] Laser off, head back at HOME');
+        } catch (err) {
+            console.log(`[SERIAL] Could not confirm the head is back at HOME: ${err.message}`);
+        }
+    } else if (serialPort && serialPort.isOpen) {
         try {
             serialPort.write('M5\n');
-            serialPort.write('G0 X0 Y0\n');
         } catch (err) {
-            // Ignore write errors on shutdown
+            console.log(`[SERIAL] Laser-off on shutdown failed: ${err.message}`);
         }
         await sleep(300);
     }
     await forceClose();
+}
+
+function withTimeout(promise, ms) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`no reply within ${ms / 1000}s`)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 function sleep(ms) {

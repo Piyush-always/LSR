@@ -14,3 +14,6 @@ printer-agent/service-account.json
 *.zip
 printer-agent/output/
 .DS_Store
+
+# Holder positions belong to one machine (set with Laser Queue > Calibrate holders)
+printer-agent/holders.json
