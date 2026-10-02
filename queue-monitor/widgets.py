@@ -508,6 +508,8 @@ class OrdersDelegate(QStyledItemDelegate):
             x = rect.left()
             if o.get("mode") == "image":
                 x += paint_pill(p, x, cy, "Image", "neutral") + T.SP_8
+            elif o.get("mode") == "cart":
+                x += paint_pill(p, x, cy, "Cart", "neutral") + T.SP_8
             p.setFont(font())
             p.setPen(theme.c("text_2" if o.get("mode") == "image" else "text_1"))
             fm = QFontMetrics(p.font())

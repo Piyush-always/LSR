@@ -33,6 +33,10 @@ _LUCIDE = {
     "plug": '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/>'
             '<path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
     "check": '<path d="M20 6 9 17l-5-5"/>',
+    "arrow-up": '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+    "arrow-down": '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
+    "arrow-left": '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+    "arrow-right": '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
     "play": '<polygon points="6 3 20 12 6 21 6 3"/>',
     "stop": '<rect width="14" height="14" x="5" y="5" rx="2"/>',
     "pointer": '<path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58'
@@ -76,6 +80,10 @@ QPushButton#Primary:disabled { background: $surface_3; color: $text_3; }
 QPushButton#Ghost { background: transparent; color: $text_1; border: 1px solid $hairline_st;
                     border-radius: 6px; padding: 0px 8px; min-height: 26px; }
 QPushButton#Ghost:hover { background: $surface_3; }
+QPushButton#Ghost:disabled, QPushButton:disabled { color: $text_3; border: 1px solid $hairline; }
+QPushButton#Segment { padding: 0px 8px; }
+QPushButton#Segment:checked { background: $accent; color: $on_accent; border: 1px solid $accent; }
+QPushButton#Segment:checked:disabled { background: $surface_3; color: $text_3; border: 1px solid $hairline; }
 
 QTableView { background: $surface_0; border: none; gridline-color: transparent; outline: 0;
              selection-background-color: $surface_3; selection-color: $text_1; }
@@ -102,7 +110,10 @@ QPushButton:default { border: 1px solid $accent; }
 QPushButton#Danger { background: transparent; color: $danger; border: 1px solid $danger; border-radius: 6px;
                      padding: 0px 12px; min-height: 32px; }
 QPushButton#Danger:hover { background: $surface_3; }
-QMessageBox { background: $surface_1; }
+QDialog { background: $surface_0; }
+QMessageBox { background: $surface_1; }   /* after QDialog: Qt ranks the two equally, so the later wins */
+QFrame#Card { background: $surface_1; border: 1px solid $hairline; border-radius: 10px; }
+QFrame#HolderRow { background: transparent; border: none; border-top: 1px solid $hairline; }
 
 QComboBox { background: $surface_2; color: $text_1; border: 1px solid $hairline; border-radius: 6px;
             padding: 0px 8px; min-height: 30px; }

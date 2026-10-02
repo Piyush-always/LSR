@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFr
                                QSplitter, QStackedWidget, QTableView, QVBoxLayout, QWidget)
 
 import agent as AG
+import calibrate_ui as CAL
 import console_ui as C
 import data as D
 import firestore as fs
@@ -108,7 +109,9 @@ class MainWindow(QMainWindow):
         self._set_agent_folder(AG.find_agent_folder(self.settings.value("agent_folder")))
         self.run_panel.start_clicked.connect(self._start_agent)
         self.run_panel.stop_clicked.connect(self._stop_agent)
+        self.run_panel.blank_loaded.connect(self.runner.fresh_blank_loaded)
         self.run_panel.choose_folder.connect(self._choose_folder)
+        self.run_panel.calibrate_clicked.connect(self._calibrate)
         self.runner.state_changed.connect(self._on_agent_state)
         self.runner.output.connect(self.log_panel.append)
         self.runner.hint.connect(self.log_panel.set_hint)
@@ -373,6 +376,13 @@ class MainWindow(QMainWindow):
         self.log_panel.show()
         self.runner.start(folder, port)
 
+    def _calibrate(self, folder: str, port: str) -> None:
+        if self.runner.running:
+            return                             # the agent has the port; the button is hidden then anyway
+        self.settings.setValue("laser_port", port)
+        CAL.CalibrateDialog(folder, port, self).exec()
+        self.run_panel.refresh_holders()
+
     def _stop_agent(self) -> None:
         if self.runner.state == "engraving" and not self._confirm(
                 "Stop while engraving?",
@@ -384,6 +394,9 @@ class MainWindow(QMainWindow):
     def _on_agent_state(self, state: str, detail: str) -> None:
         self.run_panel.set_state(state, detail)
         self.log_panel.set_state(state)
+        if state == "waiting_blank":
+            QApplication.alert(self)           # flash the taskbar button
+            QApplication.beep()
         if state in ("stopped", "crashed"):
             self._stopped_at = datetime.now(timezone.utc)
             self.run_panel.reset_home()

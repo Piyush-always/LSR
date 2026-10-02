@@ -266,8 +266,18 @@ def order_rows(o: dict) -> list[tuple[str, str, str, bool]]:
     if checkout_label and checkout_label != o.get("name"):
         rows.append(("Checkout label", checkout_label, "secondary", False))
     image = o.get("mode") == "image"
-    rows.append(("Type", "Image upload" if image else "Text", "primary", False))
-    if not image:
+    cart = o.get("mode") == "cart"
+    rows.append(("Type", "Cart" if cart else ("Image upload" if image else "Text"), "primary", False))
+    if cart:
+        items = o.get("items") or []
+        total = o.get("quantity") or sum(max(1, int(i.get("quantity") or 1)) for i in items)
+        rows.append(("Engraved", f"{o.get('items_done') or 0} of {total}", "primary", False))
+        for n, it in enumerate(items, 1):
+            what = "Photo" if it.get("mode") == "image" else (it.get("name") or "—")
+            font_name = f" · {it['fontId']}" if it.get("mode") != "image" and it.get("fontId") else ""
+            qty = f" × {it['quantity']}" if (it.get("quantity") or 1) > 1 else ""
+            rows.append((f"Keychain {n}", f"{what} · {it.get('shape') or 'rectangle'}{font_name}{qty}", "primary", False))
+    elif not image:
         rows.append(("Font", o.get("fontId") or "—", "primary", False))
     if o.get("shape"):
         rows.append(("Shape", str(o["shape"]).capitalize(), "primary", False))
@@ -317,6 +327,9 @@ def printer_rows(pr: dict, now: datetime) -> list[tuple[str, str, str, bool]]:
         rows.append(("Current job", f"{pos}{cur.get('name') or cur.get('mode') or 'order'}{pct}", "primary", False))
     else:
         rows.append(("Current job", "None", "primary", False))
+    waiting = pr.get("waitingFor")
+    if isinstance(waiting, dict) and waiting.get("holder"):
+        rows.append(("Waiting for", f"a fresh {waiting['holder']} blank", "warning", False))
     if pr.get("lastError"):
         err = str(pr["lastError"])
         hint = next((h for k, h in GRBL_HINTS.items() if k in err), None)

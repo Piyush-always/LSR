@@ -7,9 +7,10 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel
                                QPushButton, QVBoxLayout, QWidget)
 
 import agent as A
+import calibrate_ui as CAL
 import tokens as T
 from theme import font, theme
-from widgets import StatusDot, Stepper, clear_layout, label, micro
+from widgets import StatusDot, Stepper, clear_layout, label, micro, set_prop
 
 AGENT_STEPS = ("Started", "Laser", "Listening", "Engraving")
 
@@ -21,10 +22,12 @@ _STATE = {  # state -> (headline, dot tone, stepper: done, active, tone)
     "connected": ("Laser connected", "success", (2, 2, "accent")),
     "listening": ("Ready, waiting for orders", "success", (3, None, "accent")),
     "engraving": ("Engraving", "accent", (3, 3, "accent")),
+    "waiting_blank": ("Load a fresh blank", "warning", (3, 3, "warning")),
     "stopping": ("Stopping…", "text_2", (0, None, "accent")),
     "crashed": ("Stopped unexpectedly", "danger", (0, 0, "danger")),
 }
-_RUNNING = {"starting", "connecting", "retrying", "connected", "listening", "engraving", "stopping"}
+_RUNNING = {"starting", "connecting", "retrying", "connected", "listening", "engraving", "waiting_blank",
+            "stopping"}
 
 
 class RunPanel(QWidget):
@@ -32,7 +35,9 @@ class RunPanel(QWidget):
 
     start_clicked = Signal(str, str)      # agent folder, laser port
     stop_clicked = Signal()
+    blank_loaded = Signal()
     choose_folder = Signal()
+    calibrate_clicked = Signal(str, str)  # agent folder, laser port
 
     def __init__(self) -> None:
         super().__init__()
@@ -104,6 +109,17 @@ class RunPanel(QWidget):
         sv.addWidget(label("Not sure? Unplug the laser's USB cable: the port that disappears is the laser.",
                            "tertiary", wrap=True))
 
+        holders_head = QHBoxLayout()
+        holders_head.addWidget(label("Holders", "secondary"), 1)
+        self.calibrate_btn = QPushButton("Calibrate")
+        self.calibrate_btn.setObjectName("Ghost")
+        self.calibrate_btn.clicked.connect(self._calibrate)
+        holders_head.addWidget(self.calibrate_btn)
+        sv.addSpacing(T.SP_4)
+        sv.addLayout(holders_head)
+        self.holders_label = label("", "primary", wrap=True)
+        sv.addWidget(self.holders_label)
+
         self.home = QCheckBox("The laser head is at HOME")
         self.home.toggled.connect(self._update_start)
         sv.addSpacing(T.SP_4)
@@ -121,6 +137,13 @@ class RunPanel(QWidget):
         sv.addWidget(self.reason)
         v.addWidget(self.setup)
 
+        # Shown while the agent waits for the operator to reload a holder.
+        self.blank_btn = QPushButton("Fresh blank loaded")
+        self.blank_btn.setObjectName("Primary")
+        self.blank_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.blank_btn.clicked.connect(self.blank_loaded)
+        v.addWidget(self.blank_btn)
+
         # Shown while the agent runs.
         self.stop_btn = QPushButton("Stop printing")
         self.stop_btn.setObjectName("Danger")
@@ -136,7 +159,13 @@ class RunPanel(QWidget):
         self.folder_label.setText(folder or "Not found")
         self._checks_key = None
         self.refresh_checks()
+        self.refresh_holders()
         self._apply_visibility()
+
+    def refresh_holders(self) -> None:
+        text, tone = CAL.summary(self._folder)
+        self.holders_label.setText(text)
+        set_prop(self.holders_label, "role", tone)
 
     def set_saved_port(self, port: str | None) -> None:
         self._saved_port = port or None
@@ -189,7 +218,9 @@ class RunPanel(QWidget):
         self.headline.setText(text)
         self.dot.set_state(tone, False)              # the printer panel owns the app's one pulse
         shown = {"engraving": detail, "connecting": detail and f"on {detail}", "retrying": detail,
-                 "crashed": detail}.get(state, "")
+                 "crashed": detail,
+                 "waiting_blank": f"Put a new {detail} blank in the {detail} holder, then press the button."
+                 }.get(state, "")
         self.detail.setText(shown or "")
         self.detail.setVisible(bool(shown))
         self._apply_visibility()
@@ -200,6 +231,7 @@ class RunPanel(QWidget):
     def retheme(self) -> None:
         self.start_btn.setIcon(QIcon(theme.icon("play", "on_accent")))
         self.stop_btn.setIcon(QIcon(theme.icon("stop", "danger")))
+        self.blank_btn.setIcon(QIcon(theme.icon("check", "on_accent")))
         self._checks_key = None
         self.refresh_checks()
         self.set_state(self._state, self._detail)
@@ -209,6 +241,7 @@ class RunPanel(QWidget):
         running = self._state in _RUNNING
         self.not_here.setVisible(not self._folder and not running)
         self.setup.setVisible(bool(self._folder) and not running)
+        self.blank_btn.setVisible(self._state == "waiting_blank")
         self.stop_btn.setVisible(running)
         self.stop_btn.setEnabled(self._state != "stopping")
 
@@ -225,10 +258,17 @@ class RunPanel(QWidget):
         self.start_btn.setEnabled(not reason)
         self.reason.setText(reason)
         self.reason.setVisible(bool(reason))
+        has_port = bool(self.port.currentData())
+        self.calibrate_btn.setEnabled(has_port)
+        self.calibrate_btn.setToolTip("" if has_port else "Pick the laser's port first.")
 
     def _start(self) -> None:
         if self._folder and self.port.currentData():
             self.start_clicked.emit(self._folder, self.port.currentData())
+
+    def _calibrate(self) -> None:
+        if self._folder and self.port.currentData():
+            self.calibrate_clicked.emit(self._folder, self.port.currentData())
 
 
 class HintBar(QFrame):
@@ -327,7 +367,7 @@ class LogPanel(QFrame):
             tone = "text_3"
         elif text.startswith("[FAIL]") or "[ERROR]" in text or "error:" in low:
             tone = "danger"
-        elif text.startswith("[WARN]") or "failed" in low:
+        elif text.startswith(("[WARN]", "[BLANK] Load")) or "failed" in low:
             tone = "warning"
         elif text.startswith(("[READY]", "[DONE]")):
             tone = "success"

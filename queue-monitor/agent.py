@@ -90,7 +90,7 @@ def preflight(folder: str | None) -> list[Check]:
 
 class AgentRunner(QObject):
     """States: stopped, starting, connecting, retrying, connected, listening,
-    engraving, stopping, crashed."""
+    engraving, waiting_blank, stopping, crashed."""
 
     output = Signal(list)                 # batches of (text, transient) lines
     state_changed = Signal(str, str)      # state, detail
@@ -105,6 +105,7 @@ class AgentRunner(QObject):
         self.state = "stopped"
         self.detail = ""
         self.port = ""
+        self._engraving = ""                  # what was engraving before a blank change
 
         self._flush = QTimer(self)
         self._flush.setSingleShot(True)
@@ -166,6 +167,12 @@ class AgentRunner(QObject):
         else:
             self._force.start()
 
+    def fresh_blank_loaded(self) -> None:
+        """The operator has put a fresh blank in the holder the agent is waiting for."""
+        if self._proc is not None and self.state == "waiting_blank":
+            self._queue("── Fresh blank loaded ──", False)
+            self._proc.write(b"next\n")
+
     # -- output parsing ----------------------------------------------------------------------
     def _read(self) -> None:
         self._buf += bytes(self._proc.readAllStandardOutput()).decode("utf-8", errors="replace")
@@ -195,7 +202,16 @@ class AgentRunner(QObject):
         elif "Listening for new orders" in text:
             self._set("listening")
         elif text.startswith("[PRINT] Printing:"):
-            self._set("engraving", text.split(":", 1)[1].strip())
+            self._engraving = text.split(":", 1)[1].strip()
+            self._set("engraving", self._engraving)
+        elif text.startswith("[PRINT] ") and " holder" in text:      # one keychain of an order
+            self._engraving = text[len("[PRINT] "):].split(":", 1)[0]
+            self._set("engraving", self._engraving)
+        elif text.startswith("[BLANK] Load a fresh"):
+            m = re.search(r"fresh (\w+) blank", text)
+            self._set("waiting_blank", m.group(1).lower() if m else "")
+        elif text.startswith("[BLANK]") and "loaded" in text:
+            self._set("engraving", self._engraving)
         elif text.startswith("[DONE]"):
             self._set("listening")
         elif "Laser connection lost" in text:
