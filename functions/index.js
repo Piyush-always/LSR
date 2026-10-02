@@ -32,17 +32,15 @@ function getRazorpay() {
 }
 
 
-// Allowed font IDs
-const ALLOWED_FONT_IDS = ['pixel', 'bebas', 'montserrat', 'marker', 'pacifico'];
-const DEFAULT_FONT_ID = 'pixel';
-
-// Allowed shapes
-const ALLOWED_SHAPES = ['rectangle', 'circle', 'heart'];
-const DEFAULT_SHAPE = 'rectangle';
-
-function validateShape(shape) {
-    return (typeof shape === 'string' && ALLOWED_SHAPES.includes(shape)) ? shape : DEFAULT_SHAPE;
-}
+// Allowed fonts and shapes, cart orders and the price per keychain
+const {
+    UNIT_PRICE_PAISE,
+    ALLOWED_FONT_IDS,
+    DEFAULT_FONT_ID,
+    validateShape,
+    cleanTextPos,
+    buildCartOrder,
+} = require('./orders');
 
 function buildTextOrder(data) {
     const req = data || {};
@@ -64,7 +62,10 @@ function buildTextOrder(data) {
     const cleanShape = validateShape(shape);
 
     return {
-        fields: { mode: 'text', name: cleanName, fontId: cleanFontId, shape: cleanShape, phone_number, phone_e164 },
+        fields: {
+            mode: 'text', name: cleanName, fontId: cleanFontId, shape: cleanShape,
+            textPos: cleanTextPos(req.textPos, cleanShape), phone_number, phone_e164,
+        },
         rzpNotes: { mode: 'text', name: cleanName, shape: cleanShape, phone_number },
     };
 }
@@ -365,16 +366,14 @@ exports.createOrderHttp = functions.https.onRequest((req, res) => {
         try {
             const body = req.body || {};
             const reqData = (body && body.data && typeof body.data === 'object') ? body.data : body;
-            const mode = reqData.mode === 'image' ? 'image' : 'text';
+            const mode = reqData.mode === 'cart' ? 'cart' : (reqData.mode === 'image' ? 'image' : 'text');
             const machineId = (typeof reqData.machineId === 'string' && reqData.machineId.trim())
                 ? reqData.machineId.trim()
                 : 'laser-001';
 
-            const { fields, rzpNotes } = mode === 'image'
-                ? await buildImageOrder(reqData)
-                : buildTextOrder(reqData);
-
-            const amountInPaise = 100; // ₹1.00
+            const { fields, rzpNotes, amountInPaise = UNIT_PRICE_PAISE } = mode === 'cart'
+                ? buildCartOrder(reqData)
+                : (mode === 'image' ? await buildImageOrder(reqData) : buildTextOrder(reqData));
 
             const rzp = getRazorpay();
             const rzpOrder = await rzp.orders.create({
@@ -390,7 +389,7 @@ exports.createOrderHttp = functions.https.onRequest((req, res) => {
                 status: 'created',
                 razorpay_order_id: rzpOrder.id,
                 razorpay_payment_id: null,
-                amount: 1,
+                amount: amountInPaise / 100,
                 created_at: admin.firestore.FieldValue.serverTimestamp(),
                 queue_position: null,
             });
@@ -549,16 +548,16 @@ exports.createPaymentLinkHttp = functions.https.onRequest((req, res) => {
             if (phoneDigits && phoneDigits.length === 10) {
                 customerObj.contact = '+91' + phoneDigits;
             }
-            const { fields, rzpNotes } = reqData.mode === 'image'
-                ? await buildImageOrder(reqData)
-                : buildTextOrder(reqData);
+            const { fields, rzpNotes, amountInPaise = UNIT_PRICE_PAISE } = reqData.mode === 'cart'
+                ? buildCartOrder(reqData)
+                : (reqData.mode === 'image' ? await buildImageOrder(reqData) : buildTextOrder(reqData));
 
             const orderRef = db.collection('orders').doc();
             const baseUrl = reqData.callbackUrl || 'https://laser.invengic.in';
             const callbackWithParams = baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'payment=success&firestoreId=' + orderRef.id;
 
             const pLink = await rzp.paymentLink.create({
-                amount: 100,
+                amount: amountInPaise,
                 currency: 'INR',
                 accept_partial: false,
                 description: 'Custom Keychain: ' + name,
@@ -575,7 +574,7 @@ exports.createPaymentLinkHttp = functions.https.onRequest((req, res) => {
                 razorpay_order_id: pLink.id,
                 razorpay_payment_link_id: pLink.id,
                 razorpay_payment_id: null,
-                amount: 1,
+                amount: amountInPaise / 100,
                 created_at: admin.firestore.FieldValue.serverTimestamp(),
                 queue_position: null,
             });
