@@ -201,7 +201,9 @@ window.KEYCHAIN_FONTS = {
     montserrat: {
         id: 'montserrat',
         label: 'Modern',
-        family: "'Montserrat', 'Noto Emoji', sans-serif",
+        // Self-hosted copy of the laser's printer-agent/fonts/Montserrat-Bold.ttf (overlaps
+        // removed), so the outline preview shows exactly what gets engraved.
+        family: "'Montserrat Engrave', 'Noto Emoji', sans-serif",
         fixedCapHeight: 5,
         file: 'Montserrat-Bold.ttf',
     },

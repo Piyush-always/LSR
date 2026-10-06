@@ -5,6 +5,15 @@
    (docs/UI_MAP.md); this file only changes how things look.
    ========================================================================= */
 
+/* Modern font for the engraving preview: the laser's own Montserrat Bold with its
+   overlapping letter parts merged, so outlines show no stray lines (printer-agent/fonts). */
+@font-face {
+  font-family: 'Montserrat Engrave';
+  src: url('../assets/fonts/montserrat-bold-engrave.woff2') format('woff2');
+  font-weight: 100 900;    /* one face for every weight: never synthesise a fake bold */
+  font-display: swap;
+}
+
 /* ----------------------------------------------------------------- tokens */
 :root {
   --birch: #f7f0e3;
@@ -1482,7 +1491,7 @@ body[data-screen="welcome"] .home-btn {
   align-items: center;
   gap: 4px;
   min-width: 96px;
-  padding: 10px 12px 8px;
+  padding: 10px 12px;
   border-radius: var(--r-md);
   border: 1.5px solid var(--line-strong);
   background: var(--paper);
@@ -1500,20 +1509,20 @@ body[data-screen="welcome"] .home-btn {
   box-shadow: var(--stamp);
 }
 
-.font-chip-text {
-  max-width: 120px;
+/* The style's name, written in that style (font-family set inline per chip). */
+.font-chip-name {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 16px;
-  line-height: 1.4;
+  font-size: 15px;
+  line-height: 1.6;
   color: var(--burn);
 }
 
-.font-chip-name {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--smoke);
+/* Press Start 2P is about twice as wide as the other styles: smaller, so it fits and matches them. */
+.font-chip[data-font-id="pixel"] .font-chip-name {
+  font-size: 11px;
 }
 
 /* Sticky price + action bar */
@@ -3270,6 +3279,7 @@ svg.cart-item-thumb text {
 
   .font-chip {
     min-width: 0;
+    padding-inline: 6px;     /* five across: the style names need the room at 1024px */
   }
 
   .success-dashboard-wrapper {

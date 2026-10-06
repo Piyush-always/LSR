@@ -802,33 +802,19 @@ if (btnProduct) btnProduct.addEventListener('click', () => setViewMode('product'
 if (btnTechnical) btnTechnical.addEventListener('click', () => setViewMode('technical'));
 
 // ===== FONT PICKER =====
+// Each chip shows only the style's name, written in that style.
 function buildFontChips() {
     if (!fontChips) return;
     fontChips.innerHTML = '';
-    const userText = (nameInput && nameInput.value.trim().toUpperCase()) || 'INVENGIC';
-    const displayText = userText.length > 10 ? userText.slice(0, 10) + '…' : userText;
 
     Object.values(window.KEYCHAIN_FONTS).forEach(font => {
         const chip = document.createElement('button');
         chip.type = 'button';
         chip.className = 'font-chip' + (font.id === selectedFontId ? ' selected' : '');
         chip.dataset.fontId = font.id;
-        chip.innerHTML = `
-            <span class="font-chip-text" style="font-family: ${font.family};">${displayText}</span>
-            <span class="font-chip-name">${font.label}</span>
-        `;
+        chip.innerHTML = `<span class="font-chip-name" style="font-family: ${font.family};">${font.label}</span>`;
         chip.addEventListener('click', () => selectFont(font.id));
         fontChips.appendChild(chip);
-    });
-}
-
-function updateFontChipsText() {
-    if (!fontChips) return;
-    const userText = (nameInput && nameInput.value.trim().toUpperCase()) || 'INVENGIC';
-    const displayText = userText.length > 10 ? userText.slice(0, 10) + '…' : userText;
-    fontChips.querySelectorAll('.font-chip').forEach(chip => {
-        const textEl = chip.querySelector('.font-chip-text');
-        if (textEl) textEl.textContent = displayText;
     });
 }
 
@@ -1110,7 +1096,6 @@ nameInput.addEventListener('input', () => {
     }
     updateCharCount();
     renderKeychainText();
-    updateFontChipsText();
     const hasText = nameInput.value.trim().length > 0;
     if (btnPay) btnPay.disabled = !hasText;
     if (btnAddCartText) btnAddCartText.disabled = !hasText;
@@ -1122,7 +1107,6 @@ function resetTextState() {
     if (btnPay) btnPay.disabled = true;
     if (btnAddCartText) btnAddCartText.disabled = true;
     renderKeychainText();
-    updateFontChipsText();
     updateCharCount();
 }
 // ===== CAMERA FUNCTIONS =====
@@ -2435,7 +2419,6 @@ function editCartItem(itemId) {
             customTextPos = null;
         }
         renderKeychainText();
-        updateFontChipsText();
     } else if (item.mode === 'image') {
         if (typeImage) typeImage.click();
         if (item.imageProcessorState && item.imageProcessorState.canvasDataUrl) {
