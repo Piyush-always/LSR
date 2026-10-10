@@ -175,7 +175,10 @@ function sendCommand(command) {
         const onData = (data) => {
             const line = data.toString().trim();
 
-            if (line === 'ok') {
+            // Some CV-01 firmware builds append the acknowledgement directly
+            // to debug text (for example, "stop st_go_idleok") instead of
+            // sending a clean standalone "ok" line.
+            if (/\bok\s*$/i.test(line) || /idleok\s*$/i.test(line)) {
                 finish(resolve);
             } else if (/^error/i.test(line)) {
                 finish(reject, new Error(`GRBL error: ${line}`));
@@ -273,11 +276,13 @@ function forceClose() {
 /**
  * Disconnect from the laser printer (graceful shutdown)
  */
-async function disconnect() {
+async function disconnect({ returnToOrigin = true } = {}) {
     if (serialPort && serialPort.isOpen) {
         try {
             serialPort.write('M5\n');
-            serialPort.write('G0 X0 Y0\n');
+            if (returnToOrigin) {
+                serialPort.write('G0 X0 Y0\n');
+            }
         } catch (err) {
             // Ignore write errors on shutdown
         }
