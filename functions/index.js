@@ -21,10 +21,12 @@ function getRazorpay() {
 // Allowed font IDs — must mirror js/keychain-layout.js KEYCHAIN_FONTS
 const ALLOWED_FONT_IDS = ['pixel', 'bebas', 'montserrat', 'marker', 'pacifico'];
 const DEFAULT_FONT_ID = 'pixel';
+const ALLOWED_SHAPE_IDS = ['heart', 'rectangle', 'circle'];
+const DEFAULT_SHAPE_ID = 'heart';
 
 // ===== CREATE ORDER =====
 exports.createOrder = onCall({ secrets: [razorpayKeyId, razorpayKeySecret] }, async (request) => {
-    const { name, fontId } = request.data;
+    const { name, fontId, shapeId } = request.data;
 
     if (!name || typeof name !== 'string') {
         throw new HttpsError('invalid-argument', 'Name is required.');
@@ -44,6 +46,9 @@ exports.createOrder = onCall({ secrets: [razorpayKeyId, razorpayKeySecret] }, as
     const cleanFontId = (typeof fontId === 'string' && ALLOWED_FONT_IDS.includes(fontId))
         ? fontId
         : DEFAULT_FONT_ID;
+    const cleanShapeId = (typeof shapeId === 'string' && ALLOWED_SHAPE_IDS.includes(shapeId))
+        ? shapeId
+        : DEFAULT_SHAPE_ID;
 
     const amountInPaise = 100; // ₹1.00 amount change
 
@@ -52,13 +57,14 @@ exports.createOrder = onCall({ secrets: [razorpayKeyId, razorpayKeySecret] }, as
         amount: amountInPaise,
         currency: 'INR',
         receipt: 'keychain_' + Date.now(),
-        notes: { name: cleanName },
+        notes: { name: cleanName, shape: cleanShapeId },
     });
 
     const orderRef = db.collection('orders').doc();
     await orderRef.set({
         name: cleanName,
         fontId: cleanFontId,
+        shapeId: cleanShapeId,
         status: 'created',
         razorpay_order_id: rzpOrder.id,
         razorpay_payment_id: null,

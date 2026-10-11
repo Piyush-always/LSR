@@ -344,6 +344,36 @@ body::before {
     text-transform: uppercase;
 }
 
+.shape-picker {
+    margin-bottom: 22px;
+    text-align: left;
+}
+
+.shape-chips {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+
+.shape-chip {
+    width: 100%;
+    padding: 12px 14px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    text-align: left;
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.shape-chip.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
 .font-chips {
     display: flex;
     gap: 10px;

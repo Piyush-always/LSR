@@ -202,7 +202,7 @@ async function processOrder(order) {
     if (ENGRAVING_MODE === 'vector') {
         const fontId = order.fontId || 'pixel';
         console.log(`[STEP 2] Generating vector G-code (font=${fontId})...`);
-        gcodePath = await textToGcode(order.name, order.id, fontId);
+        gcodePath = await textToGcode(order.name, order.id, fontId, order.shapeId || 'heart');
     } else {
         console.log('[STEP 2] Generating raster G-code...');
         const imagePath = generateKeychainImage(order.name, order.id);

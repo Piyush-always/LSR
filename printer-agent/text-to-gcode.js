@@ -6,6 +6,13 @@
 const opentype = require('opentype.js');
 const fs = require('fs');
 const path = require('path');
+const SHAPE_POSITIONS = require('./shape-positions');
+
+const SHAPES = {
+    heart: { label: 'Heart', width: 50, height: 50, borderInset: 1.5 },
+    rectangle: { label: 'Rectangle', width: 30, height: 6, borderInset: 0.5 },
+    circle: { label: 'Circle', width: 100, height: 100, borderInset: 1.5 },
+};
 
 // #####################################################################
 // ##                                                                 ##
@@ -143,10 +150,16 @@ function isEmoji(char) {
 // =================================================================
 // MAIN ENTRY
 // =================================================================
-async function textToGcode(name, orderId, fontId) {
+async function textToGcode(name, orderId, fontId, shapeId = 'heart') {
+    const shape = SHAPES[shapeId];
+    const center = SHAPE_POSITIONS[shapeId];
+    if (!shape) throw new Error(`Unsupported keychain shape: ${shapeId}`);
+    if (!center || !Number.isFinite(center.x) || !Number.isFinite(center.y)) {
+        throw new Error(`No calibrated center configured for ${shapeId}; set it in printer-agent/shape-positions.js.`);
+    }
     const cleanFontId = FONTS[fontId] ? fontId : DEFAULT_FONT_ID;
     const fontMetric = FONTS[cleanFontId];
-    const fontSize = fontMetric.fixedCapHeight;
+    const fontSize = Math.min(fontMetric.fixedCapHeight, shape.height * 0.48);
 
     // Selective uppercase: Latin letters only, preserve emoji + symbols
     const cleanName = name.replace(/[a-z]/g, c => c.toUpperCase());
@@ -155,23 +168,28 @@ async function textToGcode(name, orderId, fontId) {
     const paths = [];
 
     // 1. Border (rounded rectangle outline)
-    paths.push(roundedRectPolyline(
-        SETTINGS.borderInset,
-        SETTINGS.borderInset,
-        SETTINGS.keychainWidth - 2 * SETTINGS.borderInset,
-        SETTINGS.keychainHeight - 2 * SETTINGS.borderInset,
-        SETTINGS.cornerRadius
-    ));
-
-    // 2. Hole (circle outline)
-    paths.push(circlePolyline(SETTINGS.holeX, SETTINGS.keychainHeight - SETTINGS.holeY, SETTINGS.holeRadius, SETTINGS.circleSegments));
+    // Shape outline is centered on the physical workpiece. Existing keychain
+    // holes are not engraved; they are part of the blank and vary by product.
+    if (shapeId === 'circle') {
+        paths.push(circlePolyline(shape.width / 2, shape.height / 2,
+            Math.min(shape.width, shape.height) / 2 - shape.borderInset, SETTINGS.circleSegments));
+    } else if (shapeId === 'heart') {
+        paths.push(heartPolyline(shape.width, shape.height, shape.borderInset));
+    } else {
+        paths.push(roundedRectPolyline(shape.borderInset, shape.borderInset,
+            shape.width - shape.borderInset * 2, shape.height - shape.borderInset * 2,
+            Math.min(1.5, shape.height / 4)));
+    }
 
     // 3. Text — char-by-char with mixed text/emoji fonts
-    const textPolylines = buildTextPolylines(cleanName, cleanFontId, fontSize);
+    const textPolylines = buildTextPolylines(cleanName, cleanFontId, fontSize, shape);
     paths.push(...textPolylines);
 
+    // Convert local lower-left coordinates to offsets from the piece center.
+    const centeredPaths = paths.map(polyline => polyline.map(([x, y]) => [x - shape.width / 2, y - shape.height / 2]));
+
     // Generate G-code
-    const gcodeText = pathsToGcode(paths, orderId, cleanName, cleanFontId);
+    const gcodeText = pathsToGcode(centeredPaths, orderId, cleanName, cleanFontId, shape, center, shapeId);
 
     // Save to file
     const outputDir = path.join(__dirname, 'output');
@@ -188,7 +206,7 @@ async function textToGcode(name, orderId, fontId) {
 // =================================================================
 // BUILD TEXT POLYLINES — char-by-char, mixed fonts
 // =================================================================
-function buildTextPolylines(text, fontId, fontSize) {
+function buildTextPolylines(text, fontId, fontSize, shape) {
     const textFont = loadFontById(fontId);
     const emojiFont = loadEmojiFont();
 
@@ -216,19 +234,21 @@ function buildTextPolylines(text, fontId, fontSize) {
     const totalWidth = cursorX;
 
     // Center horizontally in the text area
-    const textAreaCenter = (SETTINGS.textLeft + SETTINGS.textRight) / 2;
-    const offsetX = textAreaCenter - totalWidth / 2;
+    const fitScale = totalWidth > 0 ? Math.min(1, (shape.width * 0.78) / totalWidth) : 1;
+    const actualFontSize = fontSize * fitScale;
+    const actualWidth = totalWidth * fitScale;
+    const offsetX = (shape.width - actualWidth) / 2;
 
     // Center vertically — opentype draws glyphs with baseline at y=0,
     // ascenders going DOWN (Y-down convention). We need Y-up for the laser.
     // Place baseline at keychainHeight/2 - capHeight*0.35 so the cap-height-tall
     // text appears centered.
-    const baselineY = SETTINGS.keychainHeight / 2 - fontSize * 0.35;
+    const baselineY = shape.height / 2 - actualFontSize * 0.35;
 
     const polylines = [];
     for (const { glyph, x } of glyphPlacements) {
         // opentype uses (x, y) with y being the baseline; we pass y=0 and flip later
-        const glyphPath = glyph.getPath(x, 0, fontSize);
+        const glyphPath = glyph.getPath(x * fitScale, 0, actualFontSize);
         const glyphPolylines = flattenOpentypePath(glyphPath);
         for (const poly of glyphPolylines) {
             const transformed = poly.map(([px, py]) => [
@@ -323,16 +343,38 @@ function roundedRectPolyline(x, y, w, h, r) {
     return pts;
 }
 
+function heartPolyline(width, height, inset) {
+    // Sample the standard parametric heart, then scale its bounds to the blank.
+    const raw = [];
+    for (let i = 0; i <= 128; i++) {
+        const t = (i / 128) * Math.PI * 2;
+        raw.push([
+            16 * Math.sin(t) ** 3,
+            13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t),
+        ]);
+    }
+    const xs = raw.map(point => point[0]);
+    const ys = raw.map(point => point[1]);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    return raw.map(([x, y]) => [
+        inset + ((x - minX) / (maxX - minX)) * (width - inset * 2),
+        inset + ((y - minY) / (maxY - minY)) * (height - inset * 2),
+    ]);
+}
+
 // =================================================================
 // PATHS → G-CODE
 // =================================================================
-function pathsToGcode(polylines, orderId, name, fontId) {
+function pathsToGcode(polylines, orderId, name, fontId, shape, center, shapeId) {
     const lines = [];
 
     lines.push('; Vector keychain G-code');
     lines.push(`; Order: ${orderId}`);
     lines.push(`; Name: ${name}`);
     lines.push(`; Font: ${fontId}`);
+    lines.push(`; Shape: ${shapeId} (${shape.width} x ${shape.height} mm)`);
+    lines.push(`; Workpiece center: X${center.x} Y${center.y} mm from session origin`);
     lines.push(`; Mode: outline only`);
     lines.push(`; Total paths: ${polylines.length}`);
     lines.push('');
@@ -348,8 +390,8 @@ function pathsToGcode(polylines, orderId, name, fontId) {
     lines.push(`G1 F${SETTINGS.feedRate}`);
     lines.push('');
 
-    const dx = POSITION.startOffsetX;
-    const dy = POSITION.startOffsetY;
+    const dx = center.x;
+    const dy = center.y;
 
     for (const polyline of polylines) {
         if (!polyline || polyline.length < 2) continue;

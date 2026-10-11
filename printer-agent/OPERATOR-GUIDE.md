@@ -218,17 +218,54 @@ Each morning:
    ```bash
    cd C:\laser-keychain\printer-agent
    ```
-3. Start the agent:
+3. Start `jog-tool.py`. Press **R** and wait for physical homing to finish, then press **Z** to move to the heart center/reference (MPos X60, Y28). Quit the jog tool at that point.
+4. Start the agent:
    ```bash
-   set LASER_PORT=COM3
+   set LASER_PORT=COM8
    node index.js
    ```
-4. Leave this terminal window open all day
-5. Orders will print automatically as customers pay
+5. Leave this terminal window open all day
+6. Orders will print automatically as customers pay
 
 At the end of the day:
 - Press **Ctrl + C** in the terminal to stop the agent
 - Turn off the printer
+
+## Calibrate the Three Keychain Positions
+
+The website offers Heart (50 × 50 mm), Rectangle (30 × 6 mm), and Circle (100 × 100 mm). Keep each item in the same marked or jigged bed position. The printer does not detect a loose item or find its center automatically.
+
+Before accepting paid orders for a shape, calibrate its center once:
+
+1. Stop the printer agent. Start `jog-tool.py` and connect to the machine.
+2. Press **R** to physically home the machine. With the laser off, press **Z** to move to the heart center/reference at MPos X60, Y28.
+3. Press **H** there to set the jog tool's work coordinates to X0 Y0.
+4. Jog to the center of each keychain location. If the display shows **WPos X/Y**, record those values. Otherwise, subtract (60, 28) from each center's MPos to get its X/Y offset.
+5. Press **Z** to return to the heart reference, then quit the jog tool.
+6. Enter the measured offsets in `shape-positions.js`.
+7. Start the agent while the head is at the heart reference point. The agent uses its connection position as the job origin and returns there after each job.
+
+An unset center makes that shape's job fail rather than sending it to a guessed location. Recalibrate if the fixture positions or fixed reference point changes. Before production, verify that each outline fits on its blank.
+
+### Move to a Keychain Center Without the Website
+
+With the head at the same reference point used for calibration, stop the normal printer agent and run one of these from the `printer-agent` folder:
+
+```bash
+node test-shape.js heart
+node test-shape.js rectangle
+node test-shape.js circle
+```
+
+This moves the head directly to the selected center with the laser off. It does not trace or engrave anything, and it leaves the head at that center when it exits. Start at the reference point, clear the travel path, and keep the emergency stop reachable.
+
+To automatically home and visit all three machine-coordinate centers, stop the printer agent and jog tool, then run:
+
+```bash
+python auto-position-test.py
+```
+
+The script waits five seconds after homing and five seconds at each center. It leaves the head at the circle center and closes the serial port. The laser stays off, but the head moves; keep its travel path clear.
 
 ---
 

@@ -102,37 +102,14 @@
 
             <div class="preview-box">
                 <div class="keychain-preview" id="keychain-preview">
-                    <!--
-                        viewBox is in MILLIMETERS, extended around the keychain
-                        to leave room for dimension labels. The keychain itself
-                        occupies (0,0) to (72,35).
-                    -->
-                    <svg viewBox="-7 -7 86 49" class="keychain-svg" id="keychain-svg">
-                        <!-- Width dimension (above) -->
-                        <line x1="0"  y1="-3" x2="72" y2="-3" stroke="#bbb" stroke-width="0.18"/>
-                        <line x1="0"  y1="-2" x2="0"  y2="-4" stroke="#bbb" stroke-width="0.18"/>
-                        <line x1="72" y1="-2" x2="72" y2="-4" stroke="#bbb" stroke-width="0.18"/>
-                        <text x="36" y="-4.5" font-size="2.6" text-anchor="middle"
-                              fill="#888" font-family="Inter, sans-serif" font-weight="600">72 mm</text>
-
-                        <!-- Height dimension (left) -->
-                        <line x1="-3" y1="0"  x2="-3" y2="35" stroke="#bbb" stroke-width="0.18"/>
-                        <line x1="-2" y1="0"  x2="-4" y2="0"  stroke="#bbb" stroke-width="0.18"/>
-                        <line x1="-2" y1="35" x2="-4" y2="35" stroke="#bbb" stroke-width="0.18"/>
-                        <text x="-4.5" y="17.5" font-size="2.6" text-anchor="middle"
-                              fill="#888" font-family="Inter, sans-serif" font-weight="600"
-                              transform="rotate(-90, -4.5, 17.5)">35 mm</text>
-
+                    <!-- The preview outline is rebuilt in millimeter proportions for each product. -->
+                    <svg viewBox="-4 -4 88 43" class="keychain-svg" id="keychain-svg">
                         <!-- Keychain border (outline only) -->
-                        <rect x="2" y="2" width="68" height="31" rx="4" ry="4"
-                              fill="none" stroke="#0a0a0a" stroke-width="0.4"/>
-
-                        <!-- Hole -->
-                        <circle cx="7" cy="17.5" r="2.5" fill="none" stroke="#0a0a0a" stroke-width="0.4"/>
+                        <path id="keychain-shape" d="" fill="none" stroke="#0a0a0a" stroke-width="0.4" class="preview-outline"/>
 
                         <!-- Engraved text — outline only, font + content swapped at runtime -->
                         <text id="keychain-text"
-                              x="42" y="17.5"
+                              x="40" y="17.5"
                               font-family="'Press Start 2P', monospace"
                               font-size="4"
                               text-anchor="middle"
@@ -141,7 +118,12 @@
                               paint-order="stroke">YOUR NAME</text>
                     </svg>
                 </div>
-                <p class="preview-hint">Actual size · 72 × 35 mm</p>
+                <p class="preview-hint" id="preview-dimensions">Actual size · 50 × 50 mm</p>
+            </div>
+
+            <div class="shape-picker">
+                <label class="font-picker-label">Keychain Shape</label>
+                <div class="shape-chips" id="shape-chips"></div>
             </div>
 
             <div class="input-group">
@@ -215,9 +197,9 @@
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
     <!-- Shared layout constants (must load before app.js) -->
-    <script src="js/keychain-layout.js?v=3"></script>
+    <script src="js/keychain-layout.js?v=4"></script>
 
     <!-- App -->
-    <script src="js/app.js?v=3"></script>
+    <script src="js/app.js?v=4"></script>
 </body>
 </html>

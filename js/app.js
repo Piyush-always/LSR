@@ -1,5 +1,6 @@
 // ===== STATE =====
 let selectedFontId = window.DEFAULT_FONT_ID;
+let selectedShapeId = window.DEFAULT_SHAPE_ID;
 
 // ===== DOM ELEMENTS =====
 const screens = {
@@ -15,6 +16,9 @@ const nameInput = document.getElementById('name-input');
 const charCurrent = document.getElementById('char-current');
 const keychainText = document.getElementById('keychain-text');
 const fontChips = document.getElementById('font-chips');
+const shapeChips = document.getElementById('shape-chips');
+const shapePreview = document.getElementById('keychain-shape');
+const previewDimensions = document.getElementById('preview-dimensions');
 const queueNumber = document.getElementById('queue-number');
 const successName = document.getElementById('success-name');
 
@@ -56,6 +60,45 @@ function selectFont(fontId) {
     renderKeychainText();
 }
 
+function buildShapeChips() {
+    shapeChips.innerHTML = '';
+    Object.values(window.KEYCHAIN_SHAPES).forEach(shape => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'shape-chip' + (shape.id === selectedShapeId ? ' selected' : '');
+        chip.dataset.shapeId = shape.id;
+        chip.textContent = `${shape.label} · ${shape.width} × ${shape.height} mm`;
+        chip.addEventListener('click', () => selectShape(shape.id));
+        shapeChips.appendChild(chip);
+    });
+}
+
+function selectShape(shapeId) {
+    const shape = window.KEYCHAIN_SHAPES[shapeId];
+    if (!shape) return;
+    selectedShapeId = shapeId;
+    shapeChips.querySelectorAll('.shape-chip').forEach(chip => {
+        chip.classList.toggle('selected', chip.dataset.shapeId === shapeId);
+    });
+    const scale = 68 / Math.max(shape.width, shape.height);
+    const w = shape.width * scale;
+    const h = shape.height * scale;
+    const x = 40 - w / 2;
+    const y = 17.5 - h / 2;
+    let d;
+    if (shape.id === 'circle') {
+        d = `M ${40} ${y} a ${w / 2} ${h / 2} 0 1 1 0 ${h} a ${w / 2} ${h / 2} 0 1 1 0 -${h}`;
+    } else if (shape.id === 'heart') {
+        d = `M 40 ${y + h * 0.9} C ${x - w * 0.1} ${y + h * 0.55}, ${x} ${y + h * 0.1}, ${x + w * 0.28} ${y + h * 0.15} C ${x + w * 0.42} ${y + h * 0.16}, 40 ${y + h * 0.35}, 40 ${y + h * 0.35} C 40 ${y + h * 0.35}, ${x + w * 0.58} ${y + h * 0.16}, ${x + w * 0.72} ${y + h * 0.15} C ${x + w} ${y + h * 0.1}, ${x + w * 1.1} ${y + h * 0.55}, 40 ${y + h * 0.9} Z`;
+    } else {
+        d = `M ${x + 1} ${y} H ${x + w - 1} Q ${x + w} ${y} ${x + w} ${y + 1} V ${y + h - 1} Q ${x + w} ${y + h} ${x + w - 1} ${y + h} H ${x + 1} Q ${x} ${y + h} ${x} ${y + h - 1} V ${y + 1} Q ${x} ${y} ${x + 1} ${y} Z`;
+    }
+    shapePreview.setAttribute('d', d);
+    shapePreview.setAttribute('class', `preview-outline preview-${shape.id}`);
+    document.getElementById('keychain-svg').setAttribute('viewBox', `${x - 7} ${y - 7} ${w + 14} ${h + 14}`);
+    previewDimensions.textContent = `Actual size · ${shape.width} × ${shape.height} mm`;
+}
+
 // ===== LIVE KEYCHAIN PREVIEW =====
 function renderKeychainText() {
     const raw = nameInput.value.trim();
@@ -80,6 +123,8 @@ nameInput.addEventListener('input', () => {
 
 // Initialize chips on load
 buildFontChips();
+buildShapeChips();
+selectShape(selectedShapeId);
 renderKeychainText();
 
 // ===== PAYMENT FLOW =====
@@ -96,7 +141,7 @@ async function initiatePayment(name) {
     try {
         // Step 1: Create order via Cloud Function
         const createOrder = functions.httpsCallable('createOrder');
-        const result = await createOrder({ name, fontId: selectedFontId });
+        const result = await createOrder({ name, fontId: selectedFontId, shapeId: selectedShapeId });
         const { orderId, firestoreId, amount, currency, keyId } = result.data;
 
         // Step 2: Open Razorpay checkout

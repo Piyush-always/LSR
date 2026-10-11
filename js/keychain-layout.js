@@ -60,3 +60,11 @@ window.KEYCHAIN_FONTS = {
 };
 
 window.DEFAULT_FONT_ID = 'pixel';
+
+// Product choices are sent with each paid order and mirrored by the printer agent.
+window.KEYCHAIN_SHAPES = {
+    heart: { id: 'heart', label: 'Heart', width: 50, height: 50 },
+    rectangle: { id: 'rectangle', label: 'Rectangle', width: 30, height: 6 },
+    circle: { id: 'circle', label: 'Circle', width: 100, height: 100 },
+};
+window.DEFAULT_SHAPE_ID = 'heart';
