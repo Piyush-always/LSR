@@ -1,6 +1,7 @@
 node_modules/
 functions/node_modules/
 printer-agent/node_modules/
+printer-agent/output/
 
 # Environment & secrets
 functions/.env
