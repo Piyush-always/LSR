@@ -46,13 +46,16 @@ async function connect(retryCount = 0) {
     return new Promise((resolve, reject) => {
         console.log(`[SERIAL] Connecting to ${targetPort} at ${SERIAL_CONFIG.baudRate} baud...`);
 
-        let openResolved = false;
+        // Each attempt ends once: connected, failed, or handed to ONE retry. Without this the
+        // close handler and the error path could both retry, and every attempt homes the machine.
+        let settled = false;
 
         serialPort = new SerialPort({
             path: targetPort,
             baudRate: SERIAL_CONFIG.baudRate,
         }, (err) => {
-            if (err) {
+            if (err && !settled) {
+                settled = true;
                 isConnected = false;
                 reject(err);
             }
@@ -76,7 +79,8 @@ async function connect(retryCount = 0) {
         serialPort.on('close', () => {
             console.log('[SERIAL] Port closed');
             isConnected = false;
-            if (!openResolved && retryCount < 3) {
+            if (!settled && retryCount < 3) {
+                settled = true;
                 console.log('[SERIAL] Creality USB reset detected on connect, retrying in 1s...');
                 setTimeout(() => {
                     connect(retryCount + 1).then(resolve).catch(reject);
@@ -89,6 +93,7 @@ async function connect(retryCount = 0) {
 
             try {
                 await waitForBanner();
+                if (settled) return;           // handed to a retry (USB reset): that attempt owns the new port
                 console.log('[SERIAL] GRBL banner received');
 
                 if (!serialPort || !serialPort.isOpen) {
@@ -99,11 +104,13 @@ async function connect(retryCount = 0) {
                 console.log('[SERIAL] Init sequence sent');
 
                 isConnected = true;
-                openResolved = true;
+                settled = true;
                 resolve();
             } catch (err) {
                 isConnected = false;
-                if (!openResolved && retryCount < 3) {
+                if (settled) return;           // the close handler already took over (USB reset)
+                settled = true;
+                if (retryCount < 3 && !err.homing) {
                     console.log(`[SERIAL] Connect attempt ${retryCount + 1} failed (${err.message}), retrying...`);
                     setTimeout(() => {
                         connect(retryCount + 1).then(resolve).catch(reject);
@@ -157,12 +164,10 @@ async function sendInitSequence() {
     // Settle delay after the banner for Creality ESP32 motor driver init
     await sleep(1500);
 
-    // Unlock from alarm state (ignore errors — not always needed)
-    try {
-        await sendCommand('$X');
-    } catch (err) {
-        console.log(`[SERIAL] $X unlock warning: ${err.message}`);
-    }
+    // Physical homing: the head drives to its limit switches, so HOME is the same spot
+    // every session and after every reconnect. $H also clears a start-up alarm lock.
+    // The laser stays off (M5 is the power-on state; it's sent again below).
+    await homeMachine();
 
     // Enable laser mode — THIS IS THE CRITICAL FIX
     await sendCommand('$32=1');
@@ -173,17 +178,32 @@ async function sendInitSequence() {
     await sendCommand('M5');  // laser off
 
     // === DEFINE HOME (session origin) ===
-    // Clear any stale work-coordinate offset from a previous session,
-    // then set the current physical position as (0, 0) = HOME.
-    // Every subsequent job treats this spot as HOME and returns to it
-    // between jobs. This keeps keychains in the same physical spot run
-    // after run — no drift.
-    //
-    // To re-home: jog the laser to the new spot, then disconnect and
-    // reconnect the agent (Ctrl+C + restart `node index.js`).
+    // Clear any stale work-coordinate offset, then make the homed position (0, 0) =
+    // HOME. Holder centres in holders.json are mm from here, and every job returns
+    // here. Going back to exactly where homing left the head never touches a switch.
     await sendCommand('G92.1');      // clear any prior G92 offset
-    await sendCommand('G92 X0 Y0');  // current position is now HOME
-    console.log('[SERIAL] HOME set at current physical position');
+    await sendCommand('G92 X0 Y0');  // the homed position is now HOME
+    try {
+        const m = await getCurrentPosition();
+        console.log(`[HOME] HOME set at the homed position (machine X${m.x.toFixed(3)} Y${m.y.toFixed(3)})`);
+    } catch (err) {
+        console.log(`[HOME] HOME set at the homed position (machine position not reported: ${err.message})`);
+    }
+}
+
+// $H: GRBL replies only once the homing cycle has finished (CV-01 firmware may glue
+// the 'ok' onto debug text: "stop st_go_idleok"). A failure is not retried: running
+// into a faulty switch again and again would only grind the axis.
+async function homeMachine() {
+    console.log('[HOME] Homing: the head moves to its HOME corner. Keep the bed clear.');
+    try {
+        await sendCommand('$H');
+    } catch (err) {
+        const homing = new Error(`Homing failed (${err.message}). Check the limit switches and that nothing blocks the head.`);
+        homing.homing = true;
+        throw homing;
+    }
+    console.log('[HOME] Homing complete');
 }
 
 /**

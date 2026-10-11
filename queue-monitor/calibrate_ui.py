@@ -181,9 +181,9 @@ class CalibrateDialog(QDialog):
         self.connect_btn.clicked.connect(self._connect)
         head.addWidget(self.connect_btn)
         v.addLayout(head)
-        self.intro = label("Push the laser head into the HOME corner by hand, then connect. Where the head is "
-                           "when you connect becomes HOME, the same as when printing starts. "
-                           "The laser stays off the whole time.", "secondary", wrap=True)
+        self.intro = label("Clear the bed, then connect. The laser homes itself: the head drives to its HOME "
+                           "corner, the same HOME printing uses. The laser stays off the whole time.",
+                           "secondary", wrap=True)
         v.addWidget(self.intro)
         return frame
 

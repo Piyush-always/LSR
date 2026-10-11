@@ -120,12 +120,12 @@ class RunPanel(QWidget):
         self.holders_label = label("", "primary", wrap=True)
         sv.addWidget(self.holders_label)
 
-        self.home = QCheckBox("The laser head is at HOME")
+        self.home = QCheckBox("The bed is clear")
         self.home.toggled.connect(self._update_start)
         sv.addSpacing(T.SP_4)
         sv.addWidget(self.home)
-        sv.addWidget(label("Wherever the head is when the agent connects becomes HOME, "
-                           "and every keychain is placed from it.", "tertiary", wrap=True))
+        sv.addWidget(label("On start the laser homes itself: the head drives to its HOME corner, "
+                           "and every keychain is placed from there.", "tertiary", wrap=True))
 
         self.start_btn = QPushButton("Start printing")
         self.start_btn.setObjectName("Primary")
@@ -254,7 +254,7 @@ class RunPanel(QWidget):
         elif not self.port.currentData():
             reason = "Pick the laser's port."
         elif not self.home.isChecked():
-            reason = "Move the head to HOME, then tick the box."
+            reason = "Clear the bed so the head can home, then tick the box."
         self.start_btn.setEnabled(not reason)
         self.reason.setText(reason)
         self.reason.setVisible(bool(reason))

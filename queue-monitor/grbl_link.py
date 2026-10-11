@@ -1,10 +1,10 @@
 """A small GRBL client for calibrating holders from Laser Queue.
 
-Opens the laser's COM port (only while the printer agent is stopped), sets HOME
-where the head is (exactly what the agent does when it connects), jogs, reports
-the head's position, traces a keychain outline with the laser OFF, and on
-disconnect returns the head to HOME before closing the port. It never sends M3,
-so the laser never fires.
+Opens the laser's COM port (only while the printer agent is stopped), homes the
+machine with $H and makes that spot HOME (exactly what the agent does when it
+connects), jogs, reports the head's position, traces a keychain outline with the
+laser OFF, and on disconnect returns the head to HOME before closing the port. It
+never sends M3, so the laser never fires.
 
 All serial I/O runs on one worker thread; results come back as Qt signals.
 """
@@ -22,9 +22,12 @@ BAUD = 115200
 BANNER_WAIT_S = 5          # some boards reset when the port opens and print "Grbl ..."; others don't
 REPLY_TIMEOUT_S = 10       # a normal command's 'ok'
 MOVE_TIMEOUT_S = 90        # a move to be finished (head Idle again)
+HOMING_TIMEOUT_S = 120     # $H replies only once the head has reached its switches
 STATUS_POLL_S = 0.15
 TRACE_FEED = 1500          # mm/min: slow enough to follow the outline by eye
 
+# CV-01 firmware may glue the acknowledgement onto debug text ("stop st_go_idleok").
+OK_RE = re.compile(r"(\bok|idleok)\s*$", re.IGNORECASE)
 STATUS_RE = re.compile(r"<([A-Za-z]+)[^>]*?(WPos|MPos):(-?[\d.]+),(-?[\d.]+)")
 WCO_RE = re.compile(r"WCO:(-?[\d.]+),(-?[\d.]+)")
 
@@ -136,17 +139,22 @@ class GrblLink(QObject):
                 break
         time.sleep(0.3)
         try:
-            self._send("$X", timeout=3)                   # unlock if the board starts in alarm
+            self._send("M5", timeout=3)                   # laser off; also checks the board answers
         except NoReply:
             raise NoReply(f"No reply from the laser on {port}. Check the port and that the laser is on.")
-        except GrblError:                                 # rejected: the board wasn't locked
+        except GrblError:                                 # locked until homed: it answered, that's enough
             pass
-        for cmd in ("G21", "G90", "M5", "G92.1", "G92 X0 Y0"):   # same as the agent: HOME = here
+        self.message.emit("Homing: the head drives to its HOME corner…", "secondary")
+        try:
+            self._send("$H", timeout=HOMING_TIMEOUT_S)    # also clears a start-up alarm lock
+        except GrblError as e:                            # an alarm's text already says to check the switches
+            raise GrblError(f"Homing failed: {e}")
+        for cmd in ("G21", "G90", "M5", "G92.1", "G92 X0 Y0"):   # same as the agent: HOME = homed spot
             self._send(cmd)
         self.connected = True
         self.connected_changed.emit(True)
         self._report()
-        self.message.emit("Connected. HOME is where the head is now.", "secondary")
+        self.message.emit("Connected and homed. Positions are mm from HOME.", "secondary")
 
     def _jog(self, dx: float, dy: float) -> None:
         self._send("G91")
@@ -217,7 +225,7 @@ class GrblLink(QObject):
             line = self._readline(deadline)
             if line is None:
                 raise NoReply(f"No reply from the laser to {command}")
-            if line == "ok":
+            if OK_RE.search(line):
                 return
             if line.lower().startswith("error"):
                 raise GrblError(f"The laser rejected {command} ({line})")

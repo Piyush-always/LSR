@@ -112,7 +112,7 @@ async function start() {
 }
 
 function printConfigBanner() {
-    console.log(`[CONFIG] HOME = (0, 0): where the head was when the agent connected.`);
+    console.log(`[CONFIG] HOME = (0, 0): where homing ($H) leaves the head.`);
     for (const shape of ['rectangle', 'circle', 'heart']) {
         const c = holderCentre(shape);
         console.log(`[CONFIG] ${shape.padEnd(9)} holder: ` + (c
@@ -138,6 +138,15 @@ async function ensureLaserConnected() {
             await publishStatus({ lastError: null });
             return;
         } catch (err) {
+            if (err.homing) {
+                // A homing fault needs a person at the machine; retrying would keep driving into it.
+                console.error(`[FAIL] ${err.message}`);
+                console.error('[FAIL] The agent has stopped. Fix the problem, then start it again.');
+                logEvent('Homing failed, agent stopped');
+                await publishStatus({ lastError: err.message });
+                await disconnect({ returnToOrigin: false });
+                process.exit(2);
+            }
             console.error(`[WARN] Could not connect: ${err.message}`);
             await publishStatus({ lastError: err.message });
             console.error(`[WARN] Make sure the Creality CV-01 Pro is plugged in.`);

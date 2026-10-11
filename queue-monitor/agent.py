@@ -41,6 +41,8 @@ HINTS = (
      "That port isn't connected. Check the laser's USB cable and pick the port again."),
     (re.compile(r"publish failed|default credentials|invalid_grant", re.I),
      "The key isn't working. Replace service-account.json with a new key."),
+    (re.compile(r"Homing failed"),
+     "The laser couldn't home. Check the limit switches and that nothing blocks the head, then start again."),
 )
 
 

@@ -29,8 +29,7 @@ async function main() {
         await send('M5');
         await send('G21');
         await send('G90');
-        // GRBL acknowledges $H when the physical homing cycle has completed.
-        await send('$H');
+        // connect() has already homed the machine ($H), so the head is at the homed spot.
 
         await send(`G53 G0 X${CENTER_MPOS.x} Y${CENTER_MPOS.y}`);
         // Use the actual saved center as the local origin for this outline.
