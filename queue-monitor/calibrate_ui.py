@@ -62,19 +62,25 @@ def save_holder(folder: str, shape: str, x: float, y: float) -> dict:
     return holders
 
 
+def missing(folder: str | None) -> list[str]:
+    """The holders the agent still needs; it won't start until this is empty."""
+    holders, _ = load_holders(folder) if folder else ({}, "")
+    return [name.lower() for key, name in SHAPES if centre(holders, key) is None]
+
+
 def summary(folder: str | None) -> tuple[str, str]:
     """One line for the Run panel: how many holders are set, and its tone."""
     if not folder:
         return "", "secondary"
-    holders, error = load_holders(folder)
+    _, error = load_holders(folder)
     if error:
         return error, "warning"
-    missing = [name.lower() for key, name in SHAPES if centre(holders, key) is None]
-    if not missing:
+    gone = missing(folder)
+    if not gone:
         return "All 3 calibrated", "primary"
-    if len(missing) == len(SHAPES):
-        return "Not calibrated: every keychain would print at HOME", "warning"
-    return f"{len(SHAPES) - len(missing)} of 3 calibrated ({', '.join(missing)} not set)", "warning"
+    if len(gone) == len(SHAPES):
+        return "Not calibrated: printing needs all 3", "warning"
+    return f"{len(SHAPES) - len(gone)} of 3 calibrated ({', '.join(gone)} not set)", "warning"
 
 
 def mm(v: float) -> str:

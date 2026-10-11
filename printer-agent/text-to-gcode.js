@@ -6,37 +6,10 @@
 const opentype = require('opentype.js');
 const fs = require('fs');
 const path = require('path');
-const { holderOffset } = require('./holders');
+const { placement } = require('./holders');
 
-// #####################################################################
-// ##                                                                 ##
-// ##   🔧  EASY-EDIT SETTINGS — change these if you need to move    ##
-// ##       where the keychain engraves or where the laser parks.    ##
-// ##                                                                 ##
-// ##       You ONLY need to change the numbers. Do not touch         ##
-// ##       anything else in this file.                               ##
-// ##                                                                 ##
-// Holder positions now come from holders.json (Laser Queue > Calibrate holders).
-// These offsets are only used for a shape whose holder hasn't been calibrated.
-const SHAPE_POSITIONS = {
-    circle:    { startOffsetX: 0, startOffsetY: 0 },
-    rectangle: { startOffsetX: 0, startOffsetY: 0 },
-    heart:     { startOffsetX: 0, startOffsetY: 0 },
-};
-
-function getPositionForShape(shape) {
-    const key = String(shape || 'rectangle').toLowerCase().trim();
-    return holderOffset(key) || SHAPE_POSITIONS[key] || SHAPE_POSITIONS.rectangle;
-}
-
-const POSITION = {
-    get startOffsetX() { return SHAPE_POSITIONS.rectangle.startOffsetX; },
-    get startOffsetY() { return SHAPE_POSITIONS.rectangle.startOffsetY; },
-};
-// #####################################################################
-// ##  End of easy-edit settings. Do not edit below this line unless  ##
-// ##  you know what you are doing.                                   ##
-// #####################################################################
+// Where a keychain lands (its holder, the real blank's border, and how the website
+// design is turned and scaled onto that blank) is all in holders.js.
 
 
 // ===== KEYCHAIN LAYOUT (mirror of js/keychain-layout.js KEYCHAIN_LAYOUT) =====
@@ -51,17 +24,11 @@ const SETTINGS = {
     // Layout (must match js/keychain-layout.js)
     keychainWidth: 72,       // mm
     keychainHeight: 35,      // mm
-    cornerRadius: 4,
-    borderInset: 2,
-    holeX: 8,                // hole center X
-    holeY: 17.5,             // hole center Y
-    holeRadius: 2.5,
     textLeft: 15,            // text area left edge
     textRight: 70,           // text area right edge
 
     // Curve flattening
     curveSegments: 10,       // segments per Bezier curve in glyph paths
-    circleSegments: 64,      // segments for the hole circle
 };
 
 // ===== FONT REGISTRY (mirror of js/keychain-layout.js KEYCHAIN_FONTS) =====
@@ -116,42 +83,32 @@ async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle',
     // Selective uppercase: Latin letters only, preserve emoji + symbols
     const cleanName = name.replace(/[a-z]/g, c => c.toUpperCase());
 
-    // Build all paths in machine coordinates (Y-up, mm)
-    const paths = [];
+    // The text is laid out in the website design's frame (mm, Y-up), then placed on
+    // the real blank; the border is the blank's own (Tejas's tested outline). The
+    // hole isn't engraved.
+    const key = (shape === 'circle' || shape === 'heart') ? shape : 'rectangle';
+    const place = placement(key);
+    let textPolylines;
 
-    if (shape === 'circle') {
-        // Circle 50x50 mm
-        paths.push(circlePolyline(25, 25, 23, SETTINGS.circleSegments));
-        // Hole at (25, 42) in Y-up (8 mm from top)
-        paths.push(circlePolyline(25, 42, SETTINGS.holeRadius, SETTINGS.circleSegments));
+    if (key === 'circle') {
+        // Design: circle 50x50 mm
         const cx = (customX !== null && customX !== undefined) ? customX : 25;
         const cy = (customY !== null && customY !== undefined) ? (50 - customY) : 22;
-        const textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize * 0.85, cx, cy, 36);
-        paths.push(...textPolylines);
-    } else if (shape === 'heart') {
-        // Heart 55x50 mm
-        paths.push(heartPolyline());
-        // Hole at (27.5, 36.5) in Y-up (13.5 mm from top)
-        paths.push(circlePolyline(27.5, 36.5, SETTINGS.holeRadius, SETTINGS.circleSegments));
+        textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize * 0.85, cx, cy, 36);
+    } else if (key === 'heart') {
+        // Design: heart 55x50 mm
         const cx = (customX !== null && customX !== undefined) ? customX : 27.5;
         const cy = (customY !== null && customY !== undefined) ? (50 - customY) : 24;
-        const textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize * 0.85, cx, cy, 32);
-        paths.push(...textPolylines);
+        textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize * 0.85, cx, cy, 32);
     } else {
-        // Rectangle 72x35 mm (Default)
-        paths.push(roundedRectPolyline(
-            SETTINGS.borderInset,
-            SETTINGS.borderInset,
-            SETTINGS.keychainWidth - 2 * SETTINGS.borderInset,
-            SETTINGS.keychainHeight - 2 * SETTINGS.borderInset,
-            SETTINGS.cornerRadius
-        ));
-        paths.push(circlePolyline(SETTINGS.holeX, SETTINGS.keychainHeight - SETTINGS.holeY, SETTINGS.holeRadius, SETTINGS.circleSegments));
+        // Design: rectangle 72x35 mm (default)
         const cx = (customX !== null && customX !== undefined) ? customX : 42;
         const cy = (customY !== null && customY !== undefined) ? (35 - customY) : 17.5;
-        const textPolylines = buildTextPolylines(cleanName, cleanFontId, fontSize * 1.0, cx, cy, 52);
-        paths.push(...textPolylines);
+        textPolylines = buildTextPolylines(cleanName, cleanFontId, fontSize * 1.0, cx, cy, 52);
     }
+
+    // All paths in machine coordinates (mm from HOME, Y-up)
+    const paths = [place.border, ...textPolylines.map(poly => poly.map(([x, y]) => place.toMachine(x, y)))];
 
     // Generate G-code
     const gcodeText = pathsToGcode(paths, orderId, cleanName, cleanFontId, shape);
@@ -290,65 +247,6 @@ function flattenOpentypePath(opentypePath) {
 }
 
 // =================================================================
-// SHAPE GENERATORS
-// =================================================================
-function circlePolyline(cx, cy, r, segments) {
-    const points = [];
-    for (let i = 0; i <= segments; i++) {
-        const a = (i / segments) * Math.PI * 2;
-        points.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
-    }
-    return points;
-}
-
-function roundedRectPolyline(x, y, w, h, r) {
-    const segs = 8;
-    const pts = [];
-    function arc(cx, cy, startA, endA) {
-        for (let i = 0; i <= segs; i++) {
-            const a = startA + (endA - startA) * (i / segs);
-            pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
-        }
-    }
-    pts.push([x + r, y + h]);
-    pts.push([x + w - r, y + h]);
-    arc(x + w - r, y + h - r, Math.PI / 2, 0);
-    pts.push([x + w, y + r]);
-    arc(x + w - r, y + r, 0, -Math.PI / 2);
-    pts.push([x + r, y]);
-    arc(x + r, y + r, -Math.PI / 2, -Math.PI);
-    pts.push([x, y + h - r]);
-    arc(x + r, y + h - r, Math.PI, Math.PI / 2);
-    return pts;
-}
-
-// The heart outline the customer sees: borderPathD of the heart in
-// js/keychain-layout.js (cubic Béziers, Y-down, 55 x 50 mm). Keep in sync.
-const HEART_PATH = [   // [x0, y0, x1, y1, x2, y2, x3, y3]
-    [27.5, 46, 14, 36, 2, 26, 2, 15],
-    [2, 15, 2, 7, 8, 2, 16, 2],
-    [16, 2, 21.5, 2, 25.5, 5.5, 27.5, 9.5],
-    [27.5, 9.5, 29.5, 5.5, 33.5, 2, 39, 2],
-    [39, 2, 47, 2, 53, 7, 53, 15],
-    [53, 15, 53, 26, 41, 36, 27.5, 46],
-];
-const HEART_HEIGHT = 50;
-
-function heartPolyline(segmentsPerCurve = 16) {
-    const pts = [];
-    for (const [x0, y0, x1, y1, x2, y2, x3, y3] of HEART_PATH) {
-        for (let i = pts.length ? 1 : 0; i <= segmentsPerCurve; i++) {
-            const t = i / segmentsPerCurve;
-            const u = 1 - t;
-            const x = u * u * u * x0 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3;
-            const y = u * u * u * y0 + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y3;
-            pts.push([x, HEART_HEIGHT - y]);   // Y-down (web) → Y-up (machine)
-        }
-    }
-    return pts;
-}
-
-// =================================================================
 // PATHS → G-CODE
 // =================================================================
 function pathsToGcode(polylines, orderId, name, fontId, shape = 'rectangle') {
@@ -373,21 +271,17 @@ function pathsToGcode(polylines, orderId, name, fontId, shape = 'rectangle') {
     lines.push(`F${SETTINGS.feedRate}`); // set default feedrate
     lines.push('');
 
-    const pos = getPositionForShape(shape);
-    const dx = pos.startOffsetX;
-    const dy = pos.startOffsetY;
-
     for (const polyline of polylines) {
         if (!polyline || polyline.length < 2) continue;
 
         const [sx, sy] = polyline[0];
         lines.push('M5');
-        lines.push(`G0 X${(sx + dx).toFixed(3)} Y${(sy + dy).toFixed(3)}`);
+        lines.push(`G0 X${sx.toFixed(3)} Y${sy.toFixed(3)}`);
         lines.push(`M3 S${SETTINGS.maxPower}`);
 
         for (let i = 1; i < polyline.length; i++) {
             const [x, y] = polyline[i];
-            lines.push(`G1 X${(x + dx).toFixed(3)} Y${(y + dy).toFixed(3)}`);
+            lines.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)}`);
         }
     }
 
@@ -399,4 +293,4 @@ function pathsToGcode(polylines, orderId, name, fontId, shape = 'rectangle') {
     return lines.join('\n');
 }
 
-module.exports = { textToGcode, SETTINGS, FONTS, POSITION, SHAPE_POSITIONS, getPositionForShape };
+module.exports = { textToGcode, SETTINGS, FONTS };

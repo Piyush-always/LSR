@@ -47,6 +47,7 @@ class RunPanel(QWidget):
         self._blocked = ""
         self._saved_port: str | None = None
         self._ports_key = None
+        self._holders_missing: list[str] = []
         self._state = "stopped"
         self._detail = ""
 
@@ -166,6 +167,8 @@ class RunPanel(QWidget):
         text, tone = CAL.summary(self._folder)
         self.holders_label.setText(text)
         set_prop(self.holders_label, "role", tone)
+        self._holders_missing = CAL.missing(self._folder)
+        self._update_start()
 
     def set_saved_port(self, port: str | None) -> None:
         self._saved_port = port or None
@@ -253,6 +256,8 @@ class RunPanel(QWidget):
             reason = self._blocked
         elif not self.port.currentData():
             reason = "Pick the laser's port."
+        elif self._holders_missing:
+            reason = "Calibrate all 3 holders first: every keychain is engraved on its own holder."
         elif not self.home.isChecked():
             reason = "Clear the bed so the head can home, then tick the box."
         self.start_btn.setEnabled(not reason)

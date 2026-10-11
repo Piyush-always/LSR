@@ -1,19 +1,19 @@
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const fs = require('fs');
 const path = require('path');
-const { getPositionForShape } = require('./text-to-gcode');
+const { placement } = require('./holders');
 
 // =====================================================================
 //  IMAGE → G-CODE — raster engraving for uploaded logo/line-art images.
 //  ⚠️  KEEP IN SYNC with js/keychain-layout.js (KEYCHAIN_IMAGE_AREA +
 //      ENGRAVE_PIXEL_SIZE_MM). The web client pre-processes the upload into a
-//      black/white bitmap sized to exactly this area, so we map it 1:1 — no
-//      re-fitting here. Convention: WHITE pixel = burn, BLACK = skip.
+//      black/white bitmap sized to exactly this area; it's resampled only for
+//      its size on the real blank. Convention: WHITE pixel = burn, BLACK = skip.
 //
-//  Coordinate model matches text-to-gcode.js: keychain frame is mm, Y-UP,
-//  keychain occupying (0,0)–(72,35). HOME (G92 X0 Y0) is set ONCE at connect
-//  (see laser-sender.js) — we do NOT reset origin here. START offset comes from
-//  the shared POSITION block in text-to-gcode.js so text + image align.
+//  Coordinate model matches text-to-gcode.js: the photo area is in the website
+//  design's frame (mm, Y-UP) and holders.js places it on the real blank (centred
+//  on the holder, turned and scaled like the name). HOME is set ONCE at connect
+//  (see laser-sender.js) — we do NOT reset origin here.
 // =====================================================================
 
 // Per shape: keychain height (mm, to flip Y) and the engrave area in SVG/web
@@ -48,33 +48,35 @@ const SETTINGS = {
  */
 async function imageToGcode(imagePath, orderId, shape = 'rectangle') {
     const img = await loadImage(imagePath);
-    const layout = SHAPE_LAYOUT[shape] || SHAPE_LAYOUT.rectangle;
+    const key = SHAPE_LAYOUT[shape] ? shape : 'rectangle';
+    const layout = SHAPE_LAYOUT[key];
     const area = layout.area;
+    const place = placement(key);
 
-    // Engrave-resolution grid — same math as the web client.
-    const cols = Math.round(area.width / SETTINGS.pixelSize);
-    const rows = Math.round(area.height / SETTINGS.pixelSize);
+    // Engrave-resolution grid, resampled for the size on the real blank so the burn
+    // lines stay SETTINGS.pixelSize apart there.
+    const cols = Math.max(1, Math.round(area.width * place.scale / SETTINGS.pixelSize));
+    const rows = Math.max(1, Math.round(area.height * place.scale / SETTINGS.pixelSize));
 
     const canvas = createCanvas(cols, rows);
     const ctx = canvas.getContext('2d');
     ctx.drawImage(img, 0, 0, cols, rows);
     const pixels = ctx.getImageData(0, 0, cols, rows).data;
 
-    const pos = getPositionForShape(shape);
-    const dx = pos.startOffsetX;
-    const dy = pos.startOffsetY;
-    // Machine Y (Y-up) of the image area's TOP edge. row 0 sits here; deeper
-    // rows step downward (decreasing machine Y).
+    // Design Y (Y-up) of the image area's TOP edge. row 0 sits here; deeper rows
+    // step downward. A pixel's design position goes through toMachine().
     const areaTopY = layout.height - area.y;   // rectangle: 35 - 4 = 31
-
-    const machineX = (col) => (area.x + col * SETTINGS.pixelSize + dx);
-    const machineY = (row) => (areaTopY - row * SETTINGS.pixelSize + dy);
+    const stepX = area.width / cols, stepY = area.height / rows;   // design mm per pixel
+    const at = (row, col) => {
+        const [x, y] = place.toMachine(area.x + col * stepX, areaTopY - row * stepY);
+        return `X${x.toFixed(3)} Y${y.toFixed(3)}`;
+    };
 
     const gcode = [];
     gcode.push('; Raster keychain G-code (uploaded image)');
     gcode.push(`; Order: ${orderId}`);
-    gcode.push(`; Grid: ${cols} x ${rows} px @ ${SETTINGS.pixelSize} mm/px`);
-    gcode.push(`; Engrave area (${shape}): ${area.width} x ${area.height} mm at (${area.x}, ${area.y})`);
+    gcode.push(`; Grid: ${cols} x ${rows} px @ ${SETTINGS.pixelSize} mm/px on the blank`);
+    gcode.push(`; Engrave area (${key}): ${area.width} x ${area.height} mm design at (${area.x}, ${area.y}), x${place.scale.toFixed(3)}`);
     gcode.push('; Convention: white pixel = burn. HOME set at connect (no G92 here).');
     gcode.push('');
     gcode.push('G21          ; mm mode');
@@ -98,16 +100,14 @@ async function imageToGcode(imagePath, orderId, shape = 'rectangle') {
         }
         if (!hasContent) continue;
 
-        const y = machineY(row).toFixed(3);
-
         // Bidirectional scan — alternate direction each row to save travel.
         const reverse = row % 2 === 1;
         const startCol = reverse ? cols - 1 : 0;
         const endCol = reverse ? -1 : cols;
         const stepCol = reverse ? -1 : 1;
 
-        // Move to the row's starting X with the laser off.
-        gcode.push(`G0 X${machineX(startCol).toFixed(3)} Y${y} S0`);
+        // Move to the row's start with the laser off.
+        gcode.push(`G0 ${at(row, startCol)} S0`);
 
         // Walk the row, emitting a segment each time the power changes.
         let currentPower = -1;
@@ -116,14 +116,14 @@ async function imageToGcode(imagePath, orderId, shape = 'rectangle') {
             const power = brightnessAt(row, col) > 128 ? SETTINGS.maxPower : SETTINGS.minPower;
             if (power !== currentPower) {
                 if (currentPower >= 0) {
-                    gcode.push(`G1 X${machineX(col).toFixed(3)} S${currentPower}`);
+                    gcode.push(`G1 ${at(row, col)} S${currentPower}`);
                 }
                 currentPower = power;
             }
         }
         // Flush the final segment of the row.
         if (currentPower >= 0) {
-            gcode.push(`G1 X${machineX(col - stepCol).toFixed(3)} S${currentPower}`);
+            gcode.push(`G1 ${at(row, col - stepCol)} S${currentPower}`);
         }
     }
 

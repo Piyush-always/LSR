@@ -2,9 +2,9 @@
 Laser Jog Tool — keyboard-controlled position finder for GRBL lasers.
 
 USE CASE
-    Move the laser head with arrow keys to find the right HOME, START
-    or PARK positions, then read the X/Y coordinates off the screen and
-    plug them into printer-agent/text-to-gcode.js.
+    Move the laser head with arrow keys to find a holder's centre, then
+    read the X/Y coordinates off the screen and put them into
+    printer-agent/holders.json (mm from where homing leaves the head).
 
 PREREQ
     1. Stop `node index.js` first — the COM port can only be open in

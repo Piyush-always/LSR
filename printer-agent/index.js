@@ -4,7 +4,7 @@ const fs = require('fs');
 const { generateKeychainImage } = require('./generate-image');
 const { imageToGcode } = require('./image-to-gcode');
 const { textToGcode } = require('./text-to-gcode');
-const { holderCentre } = require('./holders');
+const { SHAPES, BLANKS, holderCentre, missingHolders } = require('./holders');
 const readline = require('readline');
 
 // Engraving mode: 'vector' (filled letters via opentype) or 'raster' (pixel scan)
@@ -99,6 +99,16 @@ async function start() {
     startHeartbeat();
     logEvent('Agent started');
 
+    // Every keychain is engraved on its own holder, so don't start without all of them.
+    const missing = missingHolders();
+    if (missing.length) {
+        const msg = `Holders not calibrated: ${missing.join(', ')}. Use Laser Queue > Holders > Calibrate (or fill in holders.json), then start again.`;
+        console.error(`[FAIL] ${msg}`);
+        logEvent('Holders not calibrated, agent stopped');
+        await publishStatus({ lastError: msg });
+        process.exit(2);
+    }
+
     await listPorts();
 
     // Block until the laser is connected. Without it, we do not touch the queue.
@@ -113,11 +123,11 @@ async function start() {
 
 function printConfigBanner() {
     console.log(`[CONFIG] HOME = (0, 0): where homing ($H) leaves the head.`);
-    for (const shape of ['rectangle', 'circle', 'heart']) {
+    for (const shape of SHAPES) {
         const c = holderCentre(shape);
-        console.log(`[CONFIG] ${shape.padEnd(9)} holder: ` + (c
-            ? `centre (${c.x.toFixed(1)}, ${c.y.toFixed(1)}) mm from HOME`
-            : 'NOT CALIBRATED, engraves at HOME. Use Laser Queue > Calibrate holders.'));
+        const b = BLANKS[shape];
+        console.log(`[CONFIG] ${shape.padEnd(9)} holder: centre (${c.x.toFixed(1)}, ${c.y.toFixed(1)}) mm from HOME, `
+            + `border ${b.width} x ${b.height} mm`);
     }
     console.log(`[CONFIG] After each keychain the head returns to HOME.`);
     if (CONFIRM_FRESH_BLANK) {
@@ -339,7 +349,7 @@ async function engraveUnit(unit, fileId, label) {
     const centre = holderCentre(unit.shape);
     console.log(`[PRINT] ${label}: ${unit.shape.toUpperCase()} holder ` + (centre
         ? `at (${centre.x.toFixed(1)}, ${centre.y.toFixed(1)}) mm`
-        : '(not calibrated: engraving at HOME)'));
+        : '(no calibrated holder)'));
     currentJob.name = label;
     currentJob.progress = 0;
     lastProgressAt = 0;

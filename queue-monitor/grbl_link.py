@@ -31,27 +31,25 @@ OK_RE = re.compile(r"(\bok|idleok)\s*$", re.IGNORECASE)
 STATUS_RE = re.compile(r"<([A-Za-z]+)[^>]*?(WPos|MPos):(-?[\d.]+),(-?[\d.]+)")
 WCO_RE = re.compile(r"WCO:(-?[\d.]+),(-?[\d.]+)")
 
-# The engraved border of each keychain, in mm around the holder centre (Y-up).
-# Same geometry as printer-agent/text-to-gcode.js.
-_HEART_PATH = [
-    (27.5, 46, 14, 36, 2, 26, 2, 15), (2, 15, 2, 7, 8, 2, 16, 2), (16, 2, 21.5, 2, 25.5, 5.5, 27.5, 9.5),
-    (27.5, 9.5, 29.5, 5.5, 33.5, 2, 39, 2), (39, 2, 47, 2, 53, 7, 53, 15), (53, 15, 53, 26, 41, 36, 27.5, 46),
-]
+# The border engraved on each real blank, in mm around the holder centre (Y-up).
+# Same geometry as printer-agent/holders.js (Tejas's tested shapes).
+BLANKS = {"rectangle": (29, 61), "circle": (90, 90), "heart": (45, 45)}
 
 
 def outline(shape: str) -> list[tuple[float, float]]:
+    w, h = BLANKS.get(shape, BLANKS["rectangle"])
     if shape == "circle":
-        return [(23 * math.cos(a), 23 * math.sin(a)) for a in (i * 2 * math.pi / 36 for i in range(37))]
+        return [(w / 2 * math.cos(a), w / 2 * math.sin(a)) for a in (i * 2 * math.pi / 64 for i in range(65))]
     if shape == "heart":
-        pts = []
-        for x0, y0, x1, y1, x2, y2, x3, y3 in _HEART_PATH:
-            for i in range(0 if not pts else 1, 9):
-                t, u = i / 8, 1 - i / 8
-                x = u ** 3 * x0 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t ** 3 * x3
-                y = u ** 3 * y0 + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t ** 3 * y3
-                pts.append((x - 27.5, (50 - y) - 25))      # Y-down web → Y-up, centred on the blank
-        return pts
-    return [(-34, -15.5), (34, -15.5), (34, 15.5), (-34, 15.5), (-34, -15.5)]   # rectangle border
+        raw = []
+        for i in range(129):
+            t = i / 128 * 2 * math.pi
+            raw.append((16 * math.sin(t) ** 3,
+                        13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t)))
+        xs, ys = [p[0] for p in raw], [p[1] for p in raw]
+        x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+        return [(((x - x0) / (x1 - x0) - 0.5) * w, ((y - y0) / (y1 - y0) - 0.5) * h) for x, y in raw]
+    return [(-w / 2, -h / 2), (w / 2, -h / 2), (w / 2, h / 2), (-w / 2, h / 2), (-w / 2, -h / 2)]
 
 
 class GrblError(Exception):
