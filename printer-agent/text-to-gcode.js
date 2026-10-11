@@ -75,7 +75,7 @@ function isEmoji(char) {
 // =================================================================
 // MAIN ENTRY
 // =================================================================
-async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle', customX = null, customY = null) {
+async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle') {
     const cleanFontId = FONTS[fontId] ? fontId : DEFAULT_FONT_ID;
     const fontMetric = FONTS[cleanFontId];
     const fontSize = fontMetric.fixedCapHeight;
@@ -83,32 +83,18 @@ async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle',
     // Selective uppercase: Latin letters only, preserve emoji + symbols
     const cleanName = name.replace(/[a-z]/g, c => c.toUpperCase());
 
-    // The text is laid out in the website design's frame (mm, Y-up), then placed on
-    // the real blank; the border is the blank's own (Tejas's tested outline). The
-    // hole isn't engraved.
+    // Layout as in Tejas's tested code: the blank's border (no hole), and the name
+    // centred on the blank, cap height at most 48% of the blank's height, scaled
+    // down to fit 78% of its width. (A dragged position from the website isn't used
+    // while the website shows different blank sizes.)
     const key = (shape === 'circle' || shape === 'heart') ? shape : 'rectangle';
     const place = placement(key);
-    let textPolylines;
-
-    if (key === 'circle') {
-        // Design: circle 50x50 mm
-        const cx = (customX !== null && customX !== undefined) ? customX : 25;
-        const cy = (customY !== null && customY !== undefined) ? (50 - customY) : 22;
-        textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize * 0.85, cx, cy, 36);
-    } else if (key === 'heart') {
-        // Design: heart 55x50 mm
-        const cx = (customX !== null && customX !== undefined) ? customX : 27.5;
-        const cy = (customY !== null && customY !== undefined) ? (50 - customY) : 24;
-        textPolylines = buildTextPolylinesCustom(cleanName, cleanFontId, fontSize * 0.85, cx, cy, 32);
-    } else {
-        // Design: rectangle 72x35 mm (default)
-        const cx = (customX !== null && customX !== undefined) ? customX : 42;
-        const cy = (customY !== null && customY !== undefined) ? (35 - customY) : 17.5;
-        textPolylines = buildTextPolylines(cleanName, cleanFontId, fontSize * 1.0, cx, cy, 52);
-    }
+    const { width, height } = place.blank;
+    const textPolylines = buildTextPolylines(cleanName, cleanFontId, Math.min(fontSize, height * 0.48),
+        place.centre.x, place.centre.y, width * 0.78);
 
     // All paths in machine coordinates (mm from HOME, Y-up)
-    const paths = [place.border, ...textPolylines.map(poly => poly.map(([x, y]) => place.toMachine(x, y)))];
+    const paths = [place.border, ...textPolylines];
 
     // Generate G-code
     const gcodeText = pathsToGcode(paths, orderId, cleanName, cleanFontId, shape);
@@ -195,7 +181,6 @@ function buildTextPolylines(text, fontId, baseFontSize, centerX = (SETTINGS.text
     return polylines;
 }
 
-const buildTextPolylinesCustom = buildTextPolylines;
 
 // =================================================================
 // FLATTEN OPENTYPE PATH → POLYLINES

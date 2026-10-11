@@ -1,63 +1,54 @@
-// Where each shape's holder sits on the bed, the real blank in it, and how a
-// website design is placed onto that blank.
+// The three holders on the bed and the blank in each: machine.json (Tejas's
+// hardware-tested values). Nothing is calibrated per PC.
 //
-// holders.json (next to this file, not in git: it belongs to one machine) holds
-// the CENTRE of each holder in mm from HOME (where homing leaves the head), saved
-// by Laser Queue's "Calibrate holders" screen:
-//   { "rectangle": { "x": 170, "y": 28 }, "circle": { ... }, "heart": { ... } }
-// It is read once when the agent starts, so restart the agent after calibrating.
+// Holder centres are MACHINE coordinates (MPos) from physical home ($H). After
+// homing, laser-sender reports where the head actually stopped, and every position
+// here is converted to mm from that spot (= HOME, G92 X0 Y0). So even if homing
+// stops a fraction of a millimetre away from MPos 0,0, the holders are still hit
+// exactly.
 const fs = require('fs');
 const path = require('path');
 
-const HOLDERS_PATH = path.join(__dirname, 'holders.json');
-const SHAPES = ['rectangle', 'circle', 'heart'];
+const MACHINE_PATH = path.join(__dirname, 'machine.json');
+const SHAPES = ['heart', 'rectangle', 'circle'];
 
-// The real blanks: the border engraved on each, from Tejas's shape tests
-// (rectangle_test.js, circle_test.js, heart_test.js), traced on the machine.
-// mm, centred on the holder. `rotate` (degrees) turns the website design to lie
-// like the blank: 90 puts the rectangle's long side along machine Y, with the end
-// that has the hole on the website at the low-Y end. `fit` shrinks the design further
-// where the shapes differ: the website heart is fuller at the bottom than Tejas's,
-// and 0.83 keeps it (and a photo filling it) at least 0.5 mm inside the border.
-const BLANKS = {
-    rectangle: { width: 29, height: 61, rotate: 90 },   // stands upright on the bed
-    circle:    { width: 90, height: 90, rotate: 0 },    // radius 45
-    heart:     { width: 45, height: 45, rotate: 0, fit: 0.83 },
-};
-
-// The border box of each website design (mm, Y-up, from the design's bottom-left;
-// js/keychain-layout.js): the rectangle's rounded border, the circle's ring, the heart.
-const DESIGN_BORDER = {
-    rectangle: { x0: 2, y0: 2, x1: 70, y1: 33 },
-    circle:    { x0: 2, y0: 2, x1: 48, y1: 48 },
-    heart:     { x0: 2, y0: 4, x1: 53, y1: 48 },
-};
-
-function loadHolders() {
-    try {
-        return JSON.parse(fs.readFileSync(HOLDERS_PATH, 'utf-8')) || {};
-    } catch (err) {
-        if (err.code !== 'ENOENT') console.warn(`[HOLDERS] Could not read holders.json: ${err.message}`);
-        return {};
+function loadMachine() {
+    const machine = JSON.parse(fs.readFileSync(MACHINE_PATH, 'utf-8'));
+    for (const shape of SHAPES) {
+        const h = (machine.holders || {})[shape];
+        const ok = h && ['x', 'y', 'width', 'height', 'inset'].every(k => Number.isFinite(h[k]))
+            && h.width > 0 && h.height > 0 && h.inset >= 0 && h.inset * 2 < Math.min(h.width, h.height);
+        if (!ok) throw new Error(`machine.json: the ${shape} holder needs numbers x, y, width, height and inset`);
     }
+    return machine.holders;
 }
 
-const HOLDERS = loadHolders();
+const HOLDERS = loadMachine();
+let homeMpos = { x: 0, y: 0 };   // machine position of HOME; set after every homing
 
+function setHomeMachinePosition(pos) {
+    homeMpos = { x: pos.x, y: pos.y };
+}
+
+function holder(shape) {
+    const h = HOLDERS[shape];
+    if (!h) throw new Error(`No holder for the shape "${shape}"`);
+    return h;
+}
+
+// A holder's centre in mm from HOME.
 function holderCentre(shape) {
-    const c = HOLDERS[shape];
-    return c && Number.isFinite(c.x) && Number.isFinite(c.y) ? { x: c.x, y: c.y } : null;
+    const h = holder(shape);
+    return { x: h.x - homeMpos.x, y: h.y - homeMpos.y };
 }
 
-function missingHolders() {
-    return SHAPES.filter(shape => !holderCentre(shape));
-}
-
-// The blank's border around (0, 0), drawn exactly as Tejas's tests draw it.
+// The engraved border around (0, 0), drawn as Tejas's code draws it: inset from
+// the blank's edge; a circle, his parametric heart, or a rounded rectangle.
 function borderPolyline(shape) {
-    const { width, height } = BLANKS[shape];
+    const { width, height, inset } = holder(shape);
+    const w = width - 2 * inset, h = height - 2 * inset;
     if (shape === 'circle') {
-        const r = width / 2, segments = 64;
+        const r = Math.min(w, h) / 2, segments = 64;
         const pts = [];
         for (let i = 0; i <= segments; i++) {
             const a = (2 * Math.PI * i) / segments;
@@ -74,38 +65,33 @@ function borderPolyline(shape) {
         }
         const xs = raw.map(p => p[0]), ys = raw.map(p => p[1]);
         const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-        return raw.map(([x, y]) => [((x - minX) / (maxX - minX) - 0.5) * width,
-                                    ((y - minY) / (maxY - minY) - 0.5) * height]);
+        return raw.map(([x, y]) => [((x - minX) / (maxX - minX) - 0.5) * w, ((y - minY) / (maxY - minY) - 0.5) * h]);
     }
-    const hx = width / 2, hy = height / 2;
-    return [[-hx, -hy], [hx, -hy], [hx, hy], [-hx, hy], [-hx, -hy]];
+    // rectangle: rounded corners, radius as in Tejas's code
+    const r = Math.min(1.5, height / 4), hx = w / 2, hy = h / 2, segs = 8, pts = [];
+    const arc = (cx, cy, a0, a1) => {
+        for (let i = 0; i <= segs; i++) {
+            const a = a0 + ((a1 - a0) * i) / segs;
+            pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+        }
+    };
+    arc(hx - r, -hy + r, -Math.PI / 2, 0);
+    arc(hx - r, hy - r, 0, Math.PI / 2);
+    arc(-hx + r, hy - r, Math.PI / 2, Math.PI);
+    arc(-hx + r, -hy + r, Math.PI, 1.5 * Math.PI);
+    pts.push(pts[0]);
+    return pts;
 }
 
-// Where everything for one shape lands on the machine (mm from HOME): the blank's
-// border, and toMachine() for points of the website design. The design is centred
-// on the holder, turned like the blank and scaled so its border fits the real one,
-// so the name and photo keep the layout the customer saw.
+// Everything the engravers need for one shape, in mm from HOME.
 function placement(shape) {
+    const h = holder(shape);
     const centre = holderCentre(shape);
-    if (!centre || !BLANKS[shape]) throw new Error(`The ${shape} holder isn't calibrated (holders.json)`);
-    const blank = BLANKS[shape];
-    const box = DESIGN_BORDER[shape];
-    const a = (blank.rotate * Math.PI) / 180;
-    const cos = Math.cos(a), sin = Math.sin(a);
-    const w = box.x1 - box.x0, h = box.y1 - box.y0;
-    const turnedW = Math.abs(w * cos) + Math.abs(h * sin);
-    const turnedH = Math.abs(w * sin) + Math.abs(h * cos);
-    const scale = Math.min(blank.width / turnedW, blank.height / turnedH) * (blank.fit || 1);
-    const mx = (box.x0 + box.x1) / 2, my = (box.y0 + box.y1) / 2;
     return {
         centre,
-        scale,
+        blank: { width: h.width, height: h.height, inset: h.inset },
         border: borderPolyline(shape).map(([x, y]) => [centre.x + x, centre.y + y]),
-        toMachine(x, y) {
-            const dx = (x - mx) * scale, dy = (y - my) * scale;
-            return [centre.x + dx * cos - dy * sin, centre.y + dx * sin + dy * cos];
-        },
     };
 }
 
-module.exports = { HOLDERS_PATH, SHAPES, BLANKS, holderCentre, missingHolders, borderPolyline, placement };
+module.exports = { MACHINE_PATH, SHAPES, HOLDERS, setHomeMachinePosition, holderCentre, borderPolyline, placement };

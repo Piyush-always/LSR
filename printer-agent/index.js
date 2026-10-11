@@ -4,12 +4,12 @@ const fs = require('fs');
 const { generateKeychainImage } = require('./generate-image');
 const { imageToGcode } = require('./image-to-gcode');
 const { textToGcode } = require('./text-to-gcode');
-const { SHAPES, BLANKS, holderCentre, missingHolders } = require('./holders');
+const { SHAPES, HOLDERS, holderCentre, setHomeMachinePosition } = require('./holders');
 const readline = require('readline');
 
 // Engraving mode: 'vector' (filled letters via opentype) or 'raster' (pixel scan)
 const ENGRAVING_MODE = process.env.ENGRAVING_MODE || 'vector';
-const { connect, sendGcodeFile, listPorts, disconnect, getCurrentPosition, SERIAL_CONFIG } = require('./laser-sender');
+const { connect, sendGcodeFile, listPorts, disconnect, getCurrentPosition, homeMachinePosition, SERIAL_CONFIG } = require('./laser-sender');
 
 // Load MACHINE_ID configuration (config.json, env variable, or default 'laser-001')
 let CONFIG = {};
@@ -99,16 +99,6 @@ async function start() {
     startHeartbeat();
     logEvent('Agent started');
 
-    // Every keychain is engraved on its own holder, so don't start without all of them.
-    const missing = missingHolders();
-    if (missing.length) {
-        const msg = `Holders not calibrated: ${missing.join(', ')}. Use Laser Queue > Holders > Calibrate (or fill in holders.json), then start again.`;
-        console.error(`[FAIL] ${msg}`);
-        logEvent('Holders not calibrated, agent stopped');
-        await publishStatus({ lastError: msg });
-        process.exit(2);
-    }
-
     await listPorts();
 
     // Block until the laser is connected. Without it, we do not touch the queue.
@@ -122,12 +112,12 @@ async function start() {
 }
 
 function printConfigBanner() {
-    console.log(`[CONFIG] HOME = (0, 0): where homing ($H) leaves the head.`);
+    console.log(`[CONFIG] HOME = (0, 0): where homing ($H) leaves the head. Holders from machine.json:`);
     for (const shape of SHAPES) {
         const c = holderCentre(shape);
-        const b = BLANKS[shape];
-        console.log(`[CONFIG] ${shape.padEnd(9)} holder: centre (${c.x.toFixed(1)}, ${c.y.toFixed(1)}) mm from HOME, `
-            + `border ${b.width} x ${b.height} mm`);
+        const h = HOLDERS[shape];
+        console.log(`[CONFIG] ${shape.padEnd(9)} machine (${h.x}, ${h.y}) = (${c.x.toFixed(1)}, ${c.y.toFixed(1)}) mm from HOME, `
+            + `blank ${h.width} x ${h.height} mm`);
     }
     console.log(`[CONFIG] After each keychain the head returns to HOME.`);
     if (CONFIRM_FRESH_BLANK) {
@@ -142,6 +132,7 @@ async function ensureLaserConnected() {
         try {
             console.log(`[SERIAL] Attempting to connect to ${SERIAL_CONFIG.port}...`);
             await connect();
+            setHomeMachinePosition(homeMachinePosition());   // holders are placed from where homing stopped
             laserConnected = true;
             console.log('[READY] ✓ Laser printer connected!\n');
             logEvent(`Laser connected on ${SERIAL_CONFIG.port}`);
@@ -371,10 +362,8 @@ async function engraveUnit(unit, fileId, label) {
 
         if (ENGRAVING_MODE === 'vector') {
             const fontId = unit.fontId || 'pixel';
-            const at = unit.textPos || {};
-            const where = unit.textPos ? `, text at (${at.x}, ${at.y}) mm` : '';
-            console.log(`[STEP 2] Generating vector G-code (font=${fontId}, shape=${unit.shape}${where})...`);
-            gcodePath = await textToGcode(text, fileId, fontId, unit.shape, at.x ?? null, at.y ?? null);
+            console.log(`[STEP 2] Generating vector G-code (font=${fontId}, shape=${unit.shape})...`);
+            gcodePath = await textToGcode(text, fileId, fontId, unit.shape);
         } else {
             console.log(`[STEP 2] Generating raster G-code (shape=${unit.shape})...`);
             const imagePath = generateKeychainImage(text, fileId);

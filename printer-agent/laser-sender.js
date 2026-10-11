@@ -30,6 +30,7 @@ let parser = null;
 let isConnected = false;
 let stopRequested = false;            // set on shutdown: sendGcodeFile stops before its next line
 let inFlight = Promise.resolve();     // the command currently waiting for 'ok'
+let homeMpos = null;                  // machine position where homing left the head (HOME)
 
 const SHUTDOWN_STEP_TIMEOUT_MS = 5000;   // laser off / queue the move home
 const SHUTDOWN_HOME_TIMEOUT_MS = 30000;  // wait for the head to finish moving home
@@ -179,16 +180,25 @@ async function sendInitSequence() {
 
     // === DEFINE HOME (session origin) ===
     // Clear any stale work-coordinate offset, then make the homed position (0, 0) =
-    // HOME. Holder centres in holders.json are mm from here, and every job returns
-    // here. Going back to exactly where homing left the head never touches a switch.
+    // HOME. machine.json's holder centres are converted to mm from here (holders.js),
+    // and every job returns here. Going back to exactly where homing left the head
+    // never touches a switch.
     await sendCommand('G92.1');      // clear any prior G92 offset
     await sendCommand('G92 X0 Y0');  // the homed position is now HOME
     try {
-        const m = await getCurrentPosition();
-        console.log(`[HOME] HOME set at the homed position (machine X${m.x.toFixed(3)} Y${m.y.toFixed(3)})`);
+        homeMpos = await getCurrentPosition();
+        console.log(`[HOME] HOME set at the homed position (machine X${homeMpos.x.toFixed(3)} Y${homeMpos.y.toFixed(3)})`);
     } catch (err) {
-        console.log(`[HOME] HOME set at the homed position (machine position not reported: ${err.message})`);
+        // machine.json's centres are measured from machine 0,0 (Tejas's tools move there with G53),
+        // so without a reading HOME is taken as machine 0,0.
+        homeMpos = { x: 0, y: 0 };
+        console.log(`[HOME] Machine position not reported (${err.message}); taking HOME as machine X0 Y0`);
     }
+}
+
+// Machine position of HOME from the last homing (holders.js converts machine.json with it).
+function homeMachinePosition() {
+    return homeMpos;
 }
 
 // $H: GRBL replies only once the homing cycle has finished (CV-01 firmware may glue
@@ -419,4 +429,4 @@ function getCurrentPosition({ timeoutMs = 1000 } = {}) {
     });
 }
 
-module.exports = { connect, sendCommand, sendGcodeFile, listPorts, disconnect, getCurrentPosition, SERIAL_CONFIG };
+module.exports = { connect, sendCommand, sendGcodeFile, listPorts, disconnect, getCurrentPosition, homeMachinePosition, SERIAL_CONFIG };

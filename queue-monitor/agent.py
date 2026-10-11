@@ -84,6 +84,13 @@ def preflight(folder: str | None) -> list[Check]:
     else:
         checks.append(Check(False, f"Key for {fs.PROJECT}", "No readable service-account.json in the agent folder."))
 
+    try:
+        holders = json.loads((root / "machine.json").read_text(encoding="utf-8"))["holders"]
+        ok = all(k in holders for k in ("heart", "rectangle", "circle"))
+    except (OSError, ValueError, KeyError, TypeError):
+        ok = False
+    checks.append(Check(ok, "Holder positions (machine.json)",
+                        "machine.json is missing or damaged. In the repo folder run: git pull"))
     checks.append(Check((root / "node_modules" / "serialport").is_dir(), "Packages installed",
                         "Run npm install in the agent folder."))
     checks.append(Check(shutil.which("node") is not None, "Node.js installed", "Install Node.js LTS from nodejs.org."))

@@ -25,24 +25,14 @@ The **Run on this PC** panel starts the printer agent for you, so Command Prompt
 
 1. It checks the setup first: agent folder, agent version, a key for the live project, packages and Node.js. Anything wrong shows up with the exact fix.
 2. Pick the laser's port (unplug the laser's USB if unsure: the port that disappears is the laser).
-3. Check **Holders** says all 3 are calibrated (see below; only needed once, and again if a holder moves).
-4. Clear the bed and tick the box. When printing starts the laser homes itself ($H): the head drives to its HOME corner.
-5. **Start printing.** The agent's live output appears under the orders, with a plain-English hint if something goes wrong.
+3. Clear the bed and tick the box. When printing starts the laser homes itself ($H): the head drives to its HOME corner.
+4. **Start printing.** The agent's live output appears under the orders, with a plain-English hint if something goes wrong.
 
 Each keychain is engraved on its own shape's holder, and the head goes back to HOME after every keychain. Before each one the agent waits for a fresh blank: put one in the holder it names, then press **Fresh blank loaded** (the taskbar button flashes when it's waiting). A cart order engraves its keychains one after another and picks up where it left off if the agent is restarted.
 
 **Stop printing** shuts the agent down the same way Ctrl+C does and returns the head to HOME. It asks first if a keychain is engraving. Start is blocked while another agent is already online, because two agents would print the same orders.
 
-### Calibrate holders
-
-Tells the agent where the rectangle, circle and heart holders sit on the bed. Only while the agent is stopped: **Calibrate** next to Holders opens the laser's port itself.
-
-1. Clear the bed, then **Connect**. The laser homes itself, the same HOME printing uses.
-2. Jog with the arrows (or the arrow keys) in 10, 1 or 0.1 mm steps until the laser points at the middle of a holder, then **Save here**.
-3. **Trace** runs the head along that keychain's border so you can check it sits inside the holder. Adjust and save again if it doesn't.
-4. **Done** returns the head to HOME and frees the port.
-
-The laser is never switched on while calibrating. The centres are saved to `holders.json` in the agent folder (one per machine, not in git); the agent reads it when it starts, and that's the only agent file Laser Queue writes.
+There is nothing to calibrate. The three holder positions and blank sizes are fixed in the agent's `machine.json` (Tejas's tested values); the laser homes itself, and every keychain is placed from there. The setup checks confirm the file is present.
 
 ## What it can't do
 

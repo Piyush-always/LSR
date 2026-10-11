@@ -10,22 +10,23 @@ const { placement } = require('./holders');
 //      black/white bitmap sized to exactly this area; it's resampled only for
 //      its size on the real blank. Convention: WHITE pixel = burn, BLACK = skip.
 //
-//  Coordinate model matches text-to-gcode.js: the photo area is in the website
-//  design's frame (mm, Y-UP) and holders.js places it on the real blank (centred
-//  on the holder, turned and scaled like the name). HOME is set ONCE at connect
+//  Coordinates: mm from HOME, Y-up, like text-to-gcode.js. holders.js gives the
+//  holder centre and the real blank (machine.json). HOME is set ONCE at connect
 //  (see laser-sender.js) — we do NOT reset origin here.
 // =====================================================================
 
-// Per shape: keychain height (mm, to flip Y) and the engrave area in SVG/web
-// coordinates (Y-down, origin at the keychain's top-left). Mirror of height and
-// imageArea in js/keychain-layout.js: the photo the customer placed fills
-// exactly this area.
+// Per shape: the photo area of the website design (mm; imageArea in
+// js/keychain-layout.js). The photo is fitted inside the real blank's border,
+// 0.5 mm clear of it, and centred on the holder.
 const SHAPE_LAYOUT = {
-    rectangle: { height: 35, area: { x: 13, y: 4, width: 56, height: 27 } },
-    circle: { height: 50, area: { x: 2, y: 2, width: 46, height: 46 } },
-    heart: { height: 50, area: { x: 2, y: 2, width: 51, height: 44 } },
+    rectangle: { area: { x: 13, y: 4, width: 56, height: 27 } },
+    circle: { area: { x: 2, y: 2, width: 46, height: 46 } },
+    heart: { area: { x: 2, y: 2, width: 51, height: 44 } },
 };
 const IMAGE_AREA = SHAPE_LAYOUT.rectangle.area;
+// The website's heart (the photo's mask) is fuller at the bottom than Tejas's
+// heart border; this keeps the whole photo inside his border.
+const PHOTO_FIT = { heart: 0.84 };
 
 const SETTINGS = {
     feedRate: 1500,         // mm/min — engraving speed (lower = deeper/darker)
@@ -49,34 +50,33 @@ const SETTINGS = {
 async function imageToGcode(imagePath, orderId, shape = 'rectangle') {
     const img = await loadImage(imagePath);
     const key = SHAPE_LAYOUT[shape] ? shape : 'rectangle';
-    const layout = SHAPE_LAYOUT[key];
-    const area = layout.area;
+    const area = SHAPE_LAYOUT[key].area;
     const place = placement(key);
+    const { width, height, inset } = place.blank;
+    const fit = Math.min((width - 2 * inset - 1) / area.width, (height - 2 * inset - 1) / area.height)
+        * (PHOTO_FIT[key] || 1);
 
     // Engrave-resolution grid, resampled for the size on the real blank so the burn
     // lines stay SETTINGS.pixelSize apart there.
-    const cols = Math.max(1, Math.round(area.width * place.scale / SETTINGS.pixelSize));
-    const rows = Math.max(1, Math.round(area.height * place.scale / SETTINGS.pixelSize));
+    const cols = Math.max(1, Math.round(area.width * fit / SETTINGS.pixelSize));
+    const rows = Math.max(1, Math.round(area.height * fit / SETTINGS.pixelSize));
 
     const canvas = createCanvas(cols, rows);
     const ctx = canvas.getContext('2d');
     ctx.drawImage(img, 0, 0, cols, rows);
     const pixels = ctx.getImageData(0, 0, cols, rows).data;
 
-    // Design Y (Y-up) of the image area's TOP edge. row 0 sits here; deeper rows
-    // step downward. A pixel's design position goes through toMachine().
-    const areaTopY = layout.height - area.y;   // rectangle: 35 - 4 = 31
-    const stepX = area.width / cols, stepY = area.height / rows;   // design mm per pixel
-    const at = (row, col) => {
-        const [x, y] = place.toMachine(area.x + col * stepX, areaTopY - row * stepY);
-        return `X${x.toFixed(3)} Y${y.toFixed(3)}`;
-    };
+    // Row 0 is the photo's top edge; X grows to the right, rows step down (machine
+    // Y-up), all around the holder centre.
+    const stepX = (area.width * fit) / cols, stepY = (area.height * fit) / rows;   // mm on the blank
+    const left = place.centre.x - (area.width * fit) / 2, top = place.centre.y + (area.height * fit) / 2;
+    const at = (row, col) => `X${(left + col * stepX).toFixed(3)} Y${(top - row * stepY).toFixed(3)}`;
 
     const gcode = [];
     gcode.push('; Raster keychain G-code (uploaded image)');
     gcode.push(`; Order: ${orderId}`);
     gcode.push(`; Grid: ${cols} x ${rows} px @ ${SETTINGS.pixelSize} mm/px on the blank`);
-    gcode.push(`; Engrave area (${key}): ${area.width} x ${area.height} mm design at (${area.x}, ${area.y}), x${place.scale.toFixed(3)}`);
+    gcode.push(`; Engrave area (${key}): ${(area.width * fit).toFixed(1)} x ${(area.height * fit).toFixed(1)} mm centred on the holder`);
     gcode.push('; Convention: white pixel = burn. HOME set at connect (no G92 here).');
     gcode.push('');
     gcode.push('G21          ; mm mode');

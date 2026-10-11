@@ -7,10 +7,9 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel
                                QPushButton, QVBoxLayout, QWidget)
 
 import agent as A
-import calibrate_ui as CAL
 import tokens as T
 from theme import font, theme
-from widgets import StatusDot, Stepper, clear_layout, label, micro, set_prop
+from widgets import StatusDot, Stepper, clear_layout, label, micro
 
 AGENT_STEPS = ("Started", "Laser", "Listening", "Engraving")
 
@@ -37,7 +36,6 @@ class RunPanel(QWidget):
     stop_clicked = Signal()
     blank_loaded = Signal()
     choose_folder = Signal()
-    calibrate_clicked = Signal(str, str)  # agent folder, laser port
 
     def __init__(self) -> None:
         super().__init__()
@@ -47,7 +45,6 @@ class RunPanel(QWidget):
         self._blocked = ""
         self._saved_port: str | None = None
         self._ports_key = None
-        self._holders_missing: list[str] = []
         self._state = "stopped"
         self._detail = ""
 
@@ -110,17 +107,6 @@ class RunPanel(QWidget):
         sv.addWidget(label("Not sure? Unplug the laser's USB cable: the port that disappears is the laser.",
                            "tertiary", wrap=True))
 
-        holders_head = QHBoxLayout()
-        holders_head.addWidget(label("Holders", "secondary"), 1)
-        self.calibrate_btn = QPushButton("Calibrate")
-        self.calibrate_btn.setObjectName("Ghost")
-        self.calibrate_btn.clicked.connect(self._calibrate)
-        holders_head.addWidget(self.calibrate_btn)
-        sv.addSpacing(T.SP_4)
-        sv.addLayout(holders_head)
-        self.holders_label = label("", "primary", wrap=True)
-        sv.addWidget(self.holders_label)
-
         self.home = QCheckBox("The bed is clear")
         self.home.toggled.connect(self._update_start)
         sv.addSpacing(T.SP_4)
@@ -160,15 +146,7 @@ class RunPanel(QWidget):
         self.folder_label.setText(folder or "Not found")
         self._checks_key = None
         self.refresh_checks()
-        self.refresh_holders()
         self._apply_visibility()
-
-    def refresh_holders(self) -> None:
-        text, tone = CAL.summary(self._folder)
-        self.holders_label.setText(text)
-        set_prop(self.holders_label, "role", tone)
-        self._holders_missing = CAL.missing(self._folder)
-        self._update_start()
 
     def set_saved_port(self, port: str | None) -> None:
         self._saved_port = port or None
@@ -256,24 +234,15 @@ class RunPanel(QWidget):
             reason = self._blocked
         elif not self.port.currentData():
             reason = "Pick the laser's port."
-        elif self._holders_missing:
-            reason = "Calibrate all 3 holders first: every keychain is engraved on its own holder."
         elif not self.home.isChecked():
             reason = "Clear the bed so the head can home, then tick the box."
         self.start_btn.setEnabled(not reason)
         self.reason.setText(reason)
         self.reason.setVisible(bool(reason))
-        has_port = bool(self.port.currentData())
-        self.calibrate_btn.setEnabled(has_port)
-        self.calibrate_btn.setToolTip("" if has_port else "Pick the laser's port first.")
 
     def _start(self) -> None:
         if self._folder and self.port.currentData():
             self.start_clicked.emit(self._folder, self.port.currentData())
-
-    def _calibrate(self) -> None:
-        if self._folder and self.port.currentData():
-            self.calibrate_clicked.emit(self._folder, self.port.currentData())
 
 
 class HintBar(QFrame):

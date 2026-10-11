@@ -1,14 +1,13 @@
-// Move to a configured keychain center with the laser off.
+// Move to a holder's centre with the laser off, and leave the head there.
 // Run from printer-agent: node test-shape.js heart|rectangle|circle
-const { connect, sendCommand, disconnect, SERIAL_CONFIG } = require('./laser-sender');
-const SHAPE_POSITIONS = require('./shape-positions');
+// The machine homes first ($H); the centres come from machine.json.
+const { connect, sendCommand, disconnect, homeMachinePosition, SERIAL_CONFIG } = require('./laser-sender');
+const { SHAPES, setHomeMachinePosition, holderCentre } = require('./holders');
 
 const shapeId = (process.argv[2] || '').toLowerCase();
-const center = SHAPE_POSITIONS[shapeId];
 
-if (!center || !Number.isFinite(center.x) || !Number.isFinite(center.y)) {
-    console.error('Usage: node test-shape.js <heart|rectangle|circle>');
-    console.error('That shape must have a calibrated center in shape-positions.js.');
+if (!SHAPES.includes(shapeId)) {
+    console.error(`Usage: node test-shape.js <${SHAPES.join('|')}>`);
     process.exit(2);
 }
 
@@ -17,15 +16,17 @@ async function main() {
     try {
         console.log(`[CENTER CHECK] Shape: ${shapeId}`);
         console.log(`[CENTER CHECK] Port: ${SERIAL_CONFIG.port}`);
-        console.log('[CENTER CHECK] Laser stays off. Head will move to the saved center and stop there.');
-        console.log('[CENTER CHECK] Start with the head at your reference point and clear the travel path.');
+        console.log('[CENTER CHECK] Laser stays off. The machine homes, then the head moves to the centre and stops there.');
+        console.log('[CENTER CHECK] Clear the travel path.');
 
-        await connect();
+        await connect();                                   // homes ($H)
         connected = true;
+        setHomeMachinePosition(homeMachinePosition());
+        const centre = holderCentre(shapeId);
         await sendCommand('M5');
         await sendCommand('G90');
-        await sendCommand(`G0 X${center.x.toFixed(3)} Y${center.y.toFixed(3)}`);
-        console.log(`[CENTER CHECK] Reached ${shapeId} center (X${center.x}, Y${center.y}). Head will remain there.`);
+        await sendCommand(`G0 X${centre.x.toFixed(3)} Y${centre.y.toFixed(3)}`);
+        console.log(`[CENTER CHECK] Reached the ${shapeId} centre (${centre.x.toFixed(1)}, ${centre.y.toFixed(1)} mm from HOME). Head will remain there.`);
     } catch (error) {
         console.error(`\n[CENTER CHECK] Failed: ${error.message}`);
         process.exitCode = 1;
