@@ -3,6 +3,7 @@
     .venv\\Scripts\\python build.py
 """
 import pathlib
+import shutil
 import sys
 
 import PyInstaller.__main__
@@ -32,3 +33,7 @@ PyInstaller.__main__.run([
     "--specpath", str(BUILD),
     "--exclude-module", "tkinter",
 ])
+
+# The repo keeps a ready-to-run copy in its root folder, so `git pull` brings it to the printer PC.
+shutil.copy2(HERE / "dist" / "LaserQueue.exe", HERE.parent / "LaserQueue.exe")
+print(f"Copied to {HERE.parent / 'LaserQueue.exe'}")

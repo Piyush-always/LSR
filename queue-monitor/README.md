@@ -2,11 +2,11 @@
 
 A read-only desktop monitor for the laser keychain print queue (`laser-keychain-official`).
 
-Source only is in git: the `.exe`, the build files and the Python environment are ignored (see `.gitignore`).
+The ready-to-run **`LaserQueue.exe`** is kept in the repo's root folder, so `git pull` brings it to the printer PC. The build files and the Python environment are not in git (see `.gitignore`).
 
 ## Run it
 
-Build it once (below), then double-click **`dist\LaserQueue.exe`**. It's a single file with no installer and no Python needed, so you can copy it to any Windows PC, including the printer laptop.
+Double-click **`LaserQueue.exe`** in the repo's root folder. It's a single file with no installer and no Python needed, so it also runs from a copy on any Windows PC.
 
 The first launch takes a few seconds while it unpacks. Windows SmartScreen may warn about an unrecognised app because the file isn't code-signed. Click **More info → Run anyway**.
 
@@ -56,4 +56,4 @@ First time only, in this folder: `py -3.14 -m venv .venv` then `.venv\Scripts\py
 .venv\Scripts\python build.py
 ```
 
-That produces a new `dist\LaserQueue.exe`. The design values (colours, sizes, refresh timing) are all in `tokens.py`.
+That produces a new `dist\LaserQueue.exe` and copies it to the repo's root folder; commit that copy so the printer PC gets it. The design values (colours, sizes, refresh timing) are all in `tokens.py`.

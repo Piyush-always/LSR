@@ -10,7 +10,7 @@ Steps for the printer laptop (the one connected to the Creality CV-01 Pro laser)
 4. Put the database key in the `printer-agent` folder:
    - https://console.firebase.google.com → project **laser-keychain-official** → gear icon → **Project settings** → **Service accounts** → **Generate new private key**.
    - Rename the downloaded file to `service-account.json` and move it into `printer-agent`. Never commit or share it.
-5. Get **LaserQueue.exe**: copy it from a PC that has it, or build it (see `queue-monitor/README.md`).
+5. **LaserQueue.exe** is in the repo folder itself (it comes with `git pull`). Double-click it there.
 6. Calibrate the holders: open LaserQueue.exe, pick the laser's port, then **Holders → Calibrate** (steps are on the screen). Do this again only if a holder moves.
 
 ## Every time
