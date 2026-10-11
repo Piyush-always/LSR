@@ -2,17 +2,25 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Orders collection
+    // Orders collection: Allow client reads and initial order creation (status == 'created').
+    // Updates to 'queued' status and queue_position assignments are restricted to Admin SDK (Cloud Functions).
     match /orders/{orderId} {
-      // Allow reading orders (for printer dashboard)
-      // All writes go through Cloud Functions
       allow read: if true;
-      allow write: if false;
+      allow create: if request.resource.data.status == 'created';
+      allow update: if false;
     }
 
-    // Counter for queue position
+    // Counter for queue position: Allow client reads only. Updates strictly handled by Cloud Functions.
     match /meta/counter {
-      allow read, write: if false;
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    // System status / heartbeat: Allow client reads for printer agent status indicator.
+    match /system/{docId} {
+      allow read: if true;
+      allow create, update, delete: if false;
     }
   }
 }
+

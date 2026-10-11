@@ -5,8 +5,20 @@ const fs = require('fs');
 // ===== SERIAL PORT SETTINGS =====
 // Adjust COM port for your Creality CV-01 Pro
 // Check Device Manager → Ports (COM & LPT) on the printer laptop
+function getEffectivePort() {
+    if (process.env.LASER_PORT) return process.env.LASER_PORT;
+    try {
+        if (fs.existsSync('/dev')) {
+            const files = fs.readdirSync('/dev');
+            const found = files.find(f => f.startsWith('cu.usbmodem') || f.startsWith('cu.usbserial') || f.startsWith('cu.wchusbserial'));
+            if (found) return '/dev/' + found;
+        }
+    } catch (e) {}
+    return '/dev/cu.usbmodem1234561';
+}
+
 const SERIAL_CONFIG = {
-    port: process.env.LASER_PORT || 'COM8',
+    get port() { return getEffectivePort(); },
     baudRate: 115200,
 };
 
@@ -16,22 +28,28 @@ const COMMAND_TIMEOUT_MS = 120000; // 2 min — GRBL holds 'ok' while planner bu
 let serialPort = null;
 let parser = null;
 let isConnected = false;
+let stopRequested = false;            // set on shutdown: sendGcodeFile stops before its next line
+let inFlight = Promise.resolve();     // the command currently waiting for 'ok'
+
+const SHUTDOWN_STEP_TIMEOUT_MS = 5000;   // laser off / queue the move home
+const SHUTDOWN_HOME_TIMEOUT_MS = 30000;  // wait for the head to finish moving home
 
 /**
  * Connect to the laser printer via serial port.
  * Waits for GRBL banner, then sends init sequence.
  */
-async function connect() {
-    // If there's a stale port handle from a previous failed session, close it
-    // cleanly first. Windows gives "Access denied" if we try to open a COM port
-    // that another handle (even in this same process) still holds.
+async function connect(retryCount = 0) {
     await forceClose();
 
+    const targetPort = SERIAL_CONFIG.port;
+
     return new Promise((resolve, reject) => {
-        console.log(`[SERIAL] Connecting to ${SERIAL_CONFIG.port} at ${SERIAL_CONFIG.baudRate} baud...`);
+        console.log(`[SERIAL] Connecting to ${targetPort} at ${SERIAL_CONFIG.baudRate} baud...`);
+
+        let openResolved = false;
 
         serialPort = new SerialPort({
-            path: SERIAL_CONFIG.port,
+            path: targetPort,
             baudRate: SERIAL_CONFIG.baudRate,
         }, (err) => {
             if (err) {
@@ -58,6 +76,12 @@ async function connect() {
         serialPort.on('close', () => {
             console.log('[SERIAL] Port closed');
             isConnected = false;
+            if (!openResolved && retryCount < 3) {
+                console.log('[SERIAL] Creality USB reset detected on connect, retrying in 1s...');
+                setTimeout(() => {
+                    connect(retryCount + 1).then(resolve).catch(reject);
+                }, 1000);
+            }
         });
 
         serialPort.on('open', async () => {
@@ -67,16 +91,26 @@ async function connect() {
                 await waitForBanner();
                 console.log('[SERIAL] GRBL banner received');
 
-                isConnected = true;
+                if (!serialPort || !serialPort.isOpen) {
+                    throw new Error('Port closed during startup banner');
+                }
 
-                // Send machine init sequence while GRBL is IDLE
                 await sendInitSequence();
                 console.log('[SERIAL] Init sequence sent');
 
+                isConnected = true;
+                openResolved = true;
                 resolve();
             } catch (err) {
                 isConnected = false;
-                reject(err);
+                if (!openResolved && retryCount < 3) {
+                    console.log(`[SERIAL] Connect attempt ${retryCount + 1} failed (${err.message}), retrying...`);
+                    setTimeout(() => {
+                        connect(retryCount + 1).then(resolve).catch(reject);
+                    }, 1000);
+                } else {
+                    reject(err);
+                }
             }
         });
     });
@@ -100,7 +134,7 @@ function waitForBanner() {
 
         const onData = (data) => {
             const line = data.toString().trim();
-            if (/^Grbl/i.test(line)) {
+            if (/^Grbl/i.test(line) || /homtary/i.test(line) || /^ep=/i.test(line)) {
                 finish();
             }
         };
@@ -120,8 +154,8 @@ async function sendInitSequence() {
     // port already triggers a DTR-pulse reset (which is why we got the
     // banner). Sending another reset causes the driver to close the port.
 
-    // Small settle delay after the banner
-    await sleep(300);
+    // Settle delay after the banner for Creality ESP32 motor driver init
+    await sleep(1500);
 
     // Unlock from alarm state (ignore errors — not always needed)
     try {
@@ -157,7 +191,7 @@ async function sendInitSequence() {
  * Handles errors, alarms, and timeouts properly.
  */
 function sendCommand(command) {
-    return new Promise((resolve, reject) => {
+    const sent = new Promise((resolve, reject) => {
         if (!serialPort || !serialPort.isOpen) {
             return reject(new Error('Serial port not open'));
         }
@@ -195,6 +229,8 @@ function sendCommand(command) {
         parser.on('data', onData);
         serialPort.write(command + '\n');
     });
+    inFlight = sent.catch(() => {});
+    return sent;
 }
 
 /**
@@ -210,16 +246,19 @@ async function sendGcodeFile(gcodePath, onProgress) {
     }
 
     const fileContent = fs.readFileSync(gcodePath, 'utf-8');
-    const lines = fileContent.split('\n').filter(line => {
-        const trimmed = line.trim();
-        return trimmed && !trimmed.startsWith(';');
-    });
+    const lines = fileContent
+        .split('\n')
+        .map(line => line.split(';')[0].trim())
+        .filter(Boolean);
 
     const totalLines = lines.length;
     console.log(`[SERIAL] Sending ${totalLines} G-code commands...`);
 
     for (let i = 0; i < totalLines; i++) {
-        const line = lines[i].trim();
+        if (stopRequested) {
+            throw new Error('Stopped by the operator');
+        }
+        const line = lines[i];
         await sendCommand(line);
 
         if (onProgress && (i % 100 === 0 || i === totalLines - 1)) {
@@ -277,22 +316,87 @@ function forceClose() {
  * Disconnect from the laser printer (graceful shutdown)
  */
 async function disconnect({ returnToOrigin = true } = {}) {
-    if (serialPort && serialPort.isOpen) {
+    stopRequested = true;
+    if (serialPort && serialPort.isOpen && isConnected) {
+        // Let the line in progress finish, then laser off and back to HOME. G4 (dwell)
+        // is acknowledged only after every queued move has run, so its 'ok' means the
+        // head is at HOME. Only then close: closing the port can reset the board,
+        // which would leave the head wherever it stopped.
+        // returnToOrigin: false (the shape tests) leaves the head where it is.
         try {
-            serialPort.write('M5\n');
+            await withTimeout(inFlight, SHUTDOWN_STEP_TIMEOUT_MS);
+            await withTimeout(sendCommand('M5'), SHUTDOWN_STEP_TIMEOUT_MS);
             if (returnToOrigin) {
-                serialPort.write('G0 X0 Y0\n');
+                await withTimeout(sendCommand('G0 X0 Y0'), SHUTDOWN_STEP_TIMEOUT_MS);
+                await withTimeout(sendCommand('G4 P0.1'), SHUTDOWN_HOME_TIMEOUT_MS);
+                console.log('[SERIAL] Laser off, head back at HOME');
+            } else {
+                console.log('[SERIAL] Laser off');
             }
         } catch (err) {
-            // Ignore write errors on shutdown
+            console.log(`[SERIAL] Could not confirm the laser is off and the head is back: ${err.message}`);
+        }
+    } else if (serialPort && serialPort.isOpen) {
+        try {
+            serialPort.write('M5\n');
+        } catch (err) {
+            console.log(`[SERIAL] Laser-off on shutdown failed: ${err.message}`);
         }
         await sleep(300);
     }
     await forceClose();
 }
 
+function withTimeout(promise, ms) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`no reply within ${ms / 1000}s`)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-module.exports = { connect, sendCommand, sendGcodeFile, listPorts, disconnect, SERIAL_CONFIG };
+/**
+ * Query GRBL for the current machine position. Sends `?` and parses the
+ * `<state|MPos:x,y,z|...>` status report. Returns { x, y } in millimeters.
+ *
+ * Uses a temporary parser listener so it doesn't conflict with the global
+ * one. Resolves on the first matching status line; rejects after timeout.
+ */
+function getCurrentPosition({ timeoutMs = 1000 } = {}) {
+    return new Promise((resolve, reject) => {
+        if (!serialPort || !serialPort.isOpen || !parser) {
+            return reject(new Error('Serial port not open'));
+        }
+
+        let done = false;
+        const onData = (data) => {
+            const line = data.toString().trim();
+            // GRBL status report:  <Idle|MPos:0.000,0.000,0.000|FS:0,0>
+            const m = line.match(/<[^|]+\|MPos:(-?\d+\.\d+),(-?\d+\.\d+),(-?\d+\.\d+)/);
+            if (m) {
+                if (done) return;
+                done = true;
+                clearTimeout(timer);
+                parser.removeListener('data', onData);
+                resolve({ x: parseFloat(m[1]), y: parseFloat(m[2]) });
+            }
+        };
+
+        const timer = setTimeout(() => {
+            if (done) return;
+            done = true;
+            parser.removeListener('data', onData);
+            reject(new Error('Position query timeout'));
+        }, timeoutMs);
+
+        parser.on('data', onData);
+        // `?` is GRBL's real-time status query — no newline, single byte
+        serialPort.write('?');
+    });
+}
+
+module.exports = { connect, sendCommand, sendGcodeFile, listPorts, disconnect, getCurrentPosition, SERIAL_CONFIG };

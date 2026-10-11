@@ -1,5 +1,18 @@
 {
   "projects": {
-    "default": "laser-inv"
-  }
+    "default": "laser-keychain-official"
+  },
+  "targets": {
+    "laser-keychain-official": {
+      "hosting": {
+        "invengic": [
+          "invengic"
+        ],
+        "official": [
+          "laser-keychain-official"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
