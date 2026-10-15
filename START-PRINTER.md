@@ -11,7 +11,7 @@ Steps for the printer laptop (the one connected to the Creality CV-01 Pro laser)
    - https://console.firebase.google.com → project **laser-keychain-official** → gear icon → **Project settings** → **Service accounts** → **Generate new private key**.
    - Rename the downloaded file to `service-account.json` and move it into `printer-agent`. Never commit or share it.
 5. **LaserQueue.exe** is in the repo folder itself (it comes with `git pull`). Double-click it there.
-6. Nothing to calibrate: the holder positions and blank sizes are in `printer-agent/machine.json` (Tejas's tested values), and the laser homes itself.
+6. The holder positions and blank sizes are in `printer-agent/machine.json` (Tejas's tested values), and the laser homes itself. To check or correct them: LaserQueue.exe → **Test holders** (Trace / Draw each holder, Save here to fix one).
 
 ## Every time
 

@@ -36,6 +36,7 @@ class RunPanel(QWidget):
     stop_clicked = Signal()
     blank_loaded = Signal()
     choose_folder = Signal()
+    test_holders = Signal(str, str)       # agent folder, laser port
 
     def __init__(self) -> None:
         super().__init__()
@@ -106,6 +107,14 @@ class RunPanel(QWidget):
         sv.addWidget(self.port)
         sv.addWidget(label("Not sure? Unplug the laser's USB cable: the port that disappears is the laser.",
                            "tertiary", wrap=True))
+
+        self.test_btn = QPushButton("Test holders")
+        self.test_btn.setObjectName("Ghost")
+        self.test_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.test_btn.setToolTip("See, trace or draw the three holders, and correct their positions.")
+        self.test_btn.clicked.connect(self._test_holders)
+        sv.addSpacing(T.SP_4)
+        sv.addWidget(self.test_btn, 0, Qt.AlignmentFlag.AlignLeft)
 
         self.home = QCheckBox("The bed is clear")
         self.home.toggled.connect(self._update_start)
@@ -239,10 +248,15 @@ class RunPanel(QWidget):
         self.start_btn.setEnabled(not reason)
         self.reason.setText(reason)
         self.reason.setVisible(bool(reason))
+        self.test_btn.setEnabled(bool(self.port.currentData()))
 
     def _start(self) -> None:
         if self._folder and self.port.currentData():
             self.start_clicked.emit(self._folder, self.port.currentData())
+
+    def _test_holders(self) -> None:
+        if self._folder and self.port.currentData():
+            self.test_holders.emit(self._folder, self.port.currentData())
 
 
 class HintBar(QFrame):

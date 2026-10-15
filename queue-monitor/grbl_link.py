@@ -2,21 +2,22 @@
 
 Opens the laser's COM port (only while the printer agent is stopped), homes the
 machine with $H and makes that spot HOME (exactly what the agent does when it
-connects), jogs, reports the head's position, traces a keychain outline with the
-laser OFF, and on disconnect returns the head to HOME before closing the port. It
-never sends M3, so the laser never fires.
+connects), jogs, reports the head's position, traces a holder's border, and on
+disconnect returns the head to HOME before closing the port. The laser fires only
+for draw(): the border at a low power the operator chose; everything else is M5.
 
 All serial I/O runs on one worker thread; results come back as Qt signals.
 """
 from __future__ import annotations
 
-import math
 import queue
 import re
 import threading
 import time
 
 from PySide6.QtCore import QObject, Signal
+
+import machine
 
 BAUD = 115200
 BANNER_WAIT_S = 5          # some boards reset when the port opens and print "Grbl ..."; others don't
@@ -25,31 +26,12 @@ MOVE_TIMEOUT_S = 90        # a move to be finished (head Idle again)
 HOMING_TIMEOUT_S = 120     # $H replies only once the head has reached its switches
 STATUS_POLL_S = 0.15
 TRACE_FEED = 1500          # mm/min: slow enough to follow the outline by eye
+DRAW_FEED = 800            # mm/min: as Tejas's low-power shape tests draw
 
 # CV-01 firmware may glue the acknowledgement onto debug text ("stop st_go_idleok").
 OK_RE = re.compile(r"(\bok|idleok)\s*$", re.IGNORECASE)
 STATUS_RE = re.compile(r"<([A-Za-z]+)[^>]*?(WPos|MPos):(-?[\d.]+),(-?[\d.]+)")
 WCO_RE = re.compile(r"WCO:(-?[\d.]+),(-?[\d.]+)")
-
-# The border engraved on each real blank, in mm around the holder centre (Y-up).
-# Same geometry as printer-agent/holders.js (Tejas's tested shapes).
-BLANKS = {"rectangle": (29, 61), "circle": (90, 90), "heart": (45, 45)}
-
-
-def outline(shape: str) -> list[tuple[float, float]]:
-    w, h = BLANKS.get(shape, BLANKS["rectangle"])
-    if shape == "circle":
-        return [(w / 2 * math.cos(a), w / 2 * math.sin(a)) for a in (i * 2 * math.pi / 64 for i in range(65))]
-    if shape == "heart":
-        raw = []
-        for i in range(129):
-            t = i / 128 * 2 * math.pi
-            raw.append((16 * math.sin(t) ** 3,
-                        13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t)))
-        xs, ys = [p[0] for p in raw], [p[1] for p in raw]
-        x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
-        return [(((x - x0) / (x1 - x0) - 0.5) * w, ((y - y0) / (y1 - y0) - 0.5) * h) for x, y in raw]
-    return [(-w / 2, -h / 2), (w / 2, -h / 2), (w / 2, h / 2), (-w / 2, h / 2), (-w / 2, -h / 2)]
 
 
 class GrblError(Exception):
@@ -74,7 +56,8 @@ class GrblLink(QObject):
         self._rx = b""
         self._wco = (0.0, 0.0)
         self.connected = False
-        self.x = self.y = 0.0
+        self.x = self.y = 0.0                     # head position, mm from HOME
+        self.home_mpos = (0.0, 0.0)               # machine position of HOME (where homing stopped)
         self._jobs: queue.Queue = queue.Queue()
         threading.Thread(target=self._run, name="grbl-link", daemon=True).start()
 
@@ -88,8 +71,9 @@ class GrblLink(QObject):
     def go_to(self, x: float, y: float) -> None:
         self._jobs.put((self._go_to, (x, y)))
 
-    def trace(self, shape: str, x: float, y: float) -> None:
-        self._jobs.put((self._trace, (shape, x, y)))
+    def trace(self, shape: str, holder: dict, x: float, y: float, power: int = 0) -> None:
+        """Run the head along the holder's border around (x, y) mm from HOME; power > 0 draws it."""
+        self._jobs.put((self._trace, (shape, holder, x, y, power)))
 
     def go_home(self) -> None:
         self._jobs.put((self._go_to, (0.0, 0.0)))
@@ -147,8 +131,12 @@ class GrblLink(QObject):
             self._send("$H", timeout=HOMING_TIMEOUT_S)    # also clears a start-up alarm lock
         except GrblError as e:                            # an alarm's text already says to check the switches
             raise GrblError(f"Homing failed: {e}")
-        for cmd in ("G21", "G90", "M5", "G92.1", "G92 X0 Y0"):   # same as the agent: HOME = homed spot
+        for cmd in ("G21", "G90", "M5", "G92.1"):
             self._send(cmd)
+        self.home_mpos = (0.0, 0.0)
+        if self._status():                                # no offsets now: the reading is the machine position
+            self.home_mpos = (self.x, self.y)
+        self._send("G92 X0 Y0")                           # same as the agent: HOME = homed spot
         self.connected = True
         self.connected_changed.emit(True)
         self._report()
@@ -166,15 +154,22 @@ class GrblLink(QObject):
         self._send(f"G0 X{x:.3f} Y{y:.3f}")
         self._wait_idle()
 
-    def _trace(self, shape: str, x: float, y: float) -> None:
-        self._send("M5")                                  # belt and braces: laser off
-        pts = outline(shape)
+    def _trace(self, shape: str, holder: dict, x: float, y: float, power: int) -> None:
+        self._send("M5")                                  # travel with the laser off
+        pts = machine.border(shape, holder)
         self._send(f"G0 X{x + pts[0][0]:.3f} Y{y + pts[0][1]:.3f}")
-        for dx, dy in pts[1:]:
-            self._send(f"G1 X{x + dx:.3f} Y{y + dy:.3f} F{TRACE_FEED}")
+        feed = DRAW_FEED if power > 0 else TRACE_FEED
+        try:
+            if power > 0:
+                self._send(f"M3 S{int(power)}")           # laser mode: fires only while G1 moves
+            for dx, dy in pts[1:]:
+                self._send(f"G1 X{x + dx:.3f} Y{y + dy:.3f} F{feed}")
+        finally:
+            self._send("M5")
         self._send(f"G0 X{x:.3f} Y{y:.3f}")
         self._wait_idle()
-        self.message.emit(f"Traced the {shape} outline (laser off).", "secondary")
+        how = f"drew it at S{int(power)}" if power > 0 else "laser off"
+        self.message.emit(f"{shape.capitalize()} border done ({how}).", "secondary")
 
     def _disconnect(self) -> None:
         try:

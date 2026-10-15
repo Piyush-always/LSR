@@ -1,113 +1,32 @@
-"""Calibrate holders: teach the printer agent where each keychain holder sits on the bed.
+"""Test holders: see, test and correct where the three holders are.
 
-Talks to the laser directly (through grbl_link) while the agent is stopped. The
-operator jogs the head over the middle of each holder and saves that spot to
-holders.json in the agent folder, which the agent reads when it starts. The
-laser is never switched on: tracing an outline moves the head with the laser off.
+While the printer agent is stopped, this window talks to the laser itself
+(grbl_link). Connect homes the machine. The bed view shows the three holders
+from the agent's machine.json and the head's live position. For each holder
+the head can go to its centre, trace its border with the laser off, or draw
+the border at low power. Jog onto a holder's real centre and Save here to
+correct machine.json; the printer agent uses it the next time it starts.
 """
 from __future__ import annotations
 
-import json
-import math
-import os
-from datetime import datetime, timezone
-from pathlib import Path
-
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QFont, QIcon, QKeySequence, QPainter, QPainterPath, QPen, QShortcut
-from PySide6.QtWidgets import (QButtonGroup, QDialog, QFrame, QGridLayout, QHBoxLayout, QPushButton,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QButtonGroup, QDialog, QFrame, QGridLayout, QHBoxLayout, QMessageBox,
+                               QPushButton, QVBoxLayout, QWidget)
 
 import grbl_link as G
+import machine as M
 import tokens as T
 from theme import font, theme
 from widgets import StatusDot, label, micro, set_prop
 
-SHAPES = (("rectangle", "Rectangle"), ("circle", "Circle"), ("heart", "Heart"))
+NAMES = {"heart": "Heart", "rectangle": "Rectangle", "circle": "Circle"}
 STEPS_MM = (10.0, 1.0, 0.1)
-HOLDERS_FILE = "holders.json"
-
-
-# -- holders.json --------------------------------------------------------------------------------
-def load_holders(folder: str) -> tuple[dict, str]:
-    """The saved holders, and an error text if the file exists but can't be read."""
-    try:
-        data = json.loads((Path(folder) / HOLDERS_FILE).read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return {}, ""
-    except (OSError, ValueError) as e:
-        return {}, f"{HOLDERS_FILE} couldn't be read ({e}). Saving a holder will replace it."
-    return (data, "") if isinstance(data, dict) else ({}, f"{HOLDERS_FILE} isn't a list of holders.")
-
-
-def centre(holders: dict, shape: str) -> tuple[float, float] | None:
-    """A holder's saved centre, checked the same way the agent checks it."""
-    c = holders.get(shape)
-    if not isinstance(c, dict):
-        return None
-    x, y = c.get("x"), c.get("y")
-    ok = all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in (x, y))
-    return (float(x), float(y)) if ok else None
-
-
-def save_holder(folder: str, shape: str, x: float, y: float) -> dict:
-    """Merge one holder's centre into holders.json; the other holders are kept."""
-    path = Path(folder) / HOLDERS_FILE
-    holders, _ = load_holders(folder)
-    holders[shape] = {"x": round(x, 2), "y": round(y, 2),
-                      "savedAt": datetime.now(timezone.utc).isoformat(timespec="seconds")}
-    tmp = path.with_name(HOLDERS_FILE + ".tmp")
-    tmp.write_text(json.dumps(holders, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, path)                  # all or nothing: never leaves half a file behind
-    return holders
-
-
-def missing(folder: str | None) -> list[str]:
-    """The holders the agent still needs; it won't start until this is empty."""
-    holders, _ = load_holders(folder) if folder else ({}, "")
-    return [name.lower() for key, name in SHAPES if centre(holders, key) is None]
-
-
-def summary(folder: str | None) -> tuple[str, str]:
-    """One line for the Run panel: how many holders are set, and its tone."""
-    if not folder:
-        return "", "secondary"
-    _, error = load_holders(folder)
-    if error:
-        return error, "warning"
-    gone = missing(folder)
-    if not gone:
-        return "All 3 calibrated", "primary"
-    if len(gone) == len(SHAPES):
-        return "Not calibrated: printing needs all 3", "warning"
-    return f"{len(SHAPES) - len(gone)} of 3 calibrated ({', '.join(gone)} not set)", "warning"
+POWERS = ((20, "2%"), (50, "5%"), (100, "10%"))      # S out of 1000; Tejas's shape tests drew at S20
 
 
 def mm(v: float) -> str:
     return f"{v:.2f}"
-
-
-# -- widgets -------------------------------------------------------------------------------------
-class ShapeGlyph(QWidget):
-    """The keychain's engraved border, drawn small, so each holder row is recognisable."""
-
-    def __init__(self, shape: str) -> None:
-        super().__init__()
-        self._pts = G.outline(shape)
-        self.setFixedSize(T.SP_32, T.SP_32)
-
-    def paintEvent(self, _e) -> None:
-        xs, ys = [p[0] for p in self._pts], [p[1] for p in self._pts]
-        scale = (self.width() - T.SP_4) / max(max(xs) - min(xs), max(ys) - min(ys))
-        cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
-        path = QPainterPath()
-        for i, (x, y) in enumerate(self._pts):
-            pt = QPointF(self.width() / 2 + (x - cx) * scale, self.height() / 2 - (y - cy) * scale)
-            path.moveTo(pt) if i == 0 else path.lineTo(pt)
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setPen(QPen(theme.c("text_2"), 1.5))
-        p.drawPath(path)
 
 
 def card() -> tuple[QFrame, QVBoxLayout]:
@@ -127,20 +46,124 @@ def button(text: str, name: str = "") -> QPushButton:
     return b
 
 
-# -- the window ----------------------------------------------------------------------------------
-class CalibrateDialog(QDialog):
+class ShapeGlyph(QWidget):
+    """A holder's border, drawn small, so each row is recognisable."""
+
+    def __init__(self, shape: str, holder: dict) -> None:
+        super().__init__()
+        self._pts = M.border(shape, holder)
+        self.setFixedSize(T.SP_32, T.SP_32)
+
+    def paintEvent(self, _e) -> None:
+        xs, ys = [p[0] for p in self._pts], [p[1] for p in self._pts]
+        scale = (self.width() - T.SP_4) / max(max(xs) - min(xs), max(ys) - min(ys))
+        path = QPainterPath()
+        for i, (x, y) in enumerate(self._pts):
+            pt = QPointF(self.width() / 2 + x * scale, self.height() / 2 - y * scale)
+            path.moveTo(pt) if i == 0 else path.lineTo(pt)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(QPen(theme.c("text_2"), 1.5))
+        p.drawPath(path)
+
+
+class BedView(QWidget):
+    """The bed from above in machine mm (X right, Y up): HOME, the three holders, the head."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._holders: dict = {}
+        self._head: tuple[float, float] | None = None
+        self._active: str | None = None
+        self.setMinimumSize(360, 300)
+
+    def set_holders(self, holders: dict) -> None:
+        self._holders = holders
+        self.update()
+
+    def set_head(self, xy: tuple[float, float] | None) -> None:
+        self._head = xy
+        self.update()
+
+    def set_active(self, shape: str | None) -> None:
+        self._active = shape
+        self.update()
+
+    def paintEvent(self, _e) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        hs = self._holders
+        x1 = max([h["x"] + h["width"] / 2 for h in hs.values()] + [100]) + 15
+        y1 = max([h["y"] + h["height"] / 2 for h in hs.values()] + [100]) + 15
+        x0, y0, pad = -10.0, -10.0, T.SP_16
+        s = min((self.width() - 2 * pad) / (x1 - x0), (self.height() - 2 * pad - T.SP_16) / (y1 - y0))
+        left = (self.width() - (x1 - x0) * s) / 2
+        top = (self.height() - T.SP_16 - (y1 - y0) * s) / 2     # centred, room for the axis note
+
+        def to(x: float, y: float) -> QPointF:
+            return QPointF(left + (x - x0) * s, top + (y1 - y) * s)
+
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(theme.c("surface_0"))
+        p.drawRoundedRect(QRectF(to(x0, y1), to(x1, y0)), T.R_CONTROL, T.R_CONTROL)
+        for g in range(0, int(max(x1, y1)) + 1, 10):                       # 10 mm grid
+            p.setPen(QPen(theme.c("hairline_st" if g % 50 == 0 else "hairline"), 1))
+            if g <= x1:
+                p.drawLine(to(g, y0), to(g, y1))
+            if g <= y1:
+                p.drawLine(to(x0, g), to(x1, g))
+
+        p.setFont(font(T.SIZE_MICRO, QFont.Weight.DemiBold, track_em=T.TRACK_MICRO))
+        p.setPen(QPen(theme.c("text_2"), 1.5))
+        home = to(0, 0)
+        p.drawLine(home + QPointF(-6, 0), home + QPointF(6, 0))
+        p.drawLine(home + QPointF(0, -6), home + QPointF(0, 6))
+        p.drawText(home + QPointF(8, -6), "HOME")
+        p.setPen(theme.c("text_3"))
+        p.drawText(QRectF(to(x0, y0), to(x1, y0 - 12 / s)).adjusted(0, 2, -4, 0),
+                   int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop), "X RIGHT  ·  Y UP  ·  MM")
+
+        for shape, h in hs.items():
+            active = shape == self._active
+            path = QPainterPath()
+            for i, (bx, by) in enumerate(M.border(shape, h)):
+                pt = to(h["x"] + bx, h["y"] + by)
+                path.moveTo(pt) if i == 0 else path.lineTo(pt)
+            p.setBrush(theme.c("accent", 0.10) if active else Qt.BrushStyle.NoBrush)
+            p.setPen(QPen(theme.c("accent" if active else "text_2"), 2 if active else 1.5))
+            p.drawPath(path)
+            c = to(h["x"], h["y"])
+            p.drawLine(c + QPointF(-4, 0), c + QPointF(4, 0))
+            p.drawLine(c + QPointF(0, -4), c + QPointF(0, 4))
+            p.setPen(theme.c("text_1" if active else "text_2"))
+            under = to(h["x"], h["y"] - h["height"] / 2)
+            p.drawText(QRectF(under.x() - 60, under.y() + 4, 120, 14), int(Qt.AlignmentFlag.AlignHCenter),
+                       NAMES[shape].upper())
+
+        if self._head is not None:
+            c = to(*self._head)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(theme.c("accent", 0.25))
+            p.drawEllipse(c, 9, 9)
+            p.setBrush(theme.c("accent"))
+            p.drawEllipse(c, 4, 4)
+
+
+class TestHoldersDialog(QDialog):
     def __init__(self, folder: str, port: str, parent: QWidget | None = None,
                  link: G.GrblLink | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Calibrate holders")
+        self.setWindowTitle("Test holders")
         self.setModal(True)
-        self.setMinimumWidth(T.SIDEBAR_W + T.PRIMARY_MIN_W)     # height follows the content
+        self.setMinimumWidth(T.SIDEBAR_W + T.PRIMARY_MIN_W + T.SP_48 * 4)
         self._folder, self._port = folder, port
         self._state = "idle"               # idle, connecting, connected, closing
         self._busy = False
         self._done = False
+        self._draw_ok = False              # the operator confirmed drawing with the laser once
         self._step = STEPS_MM[0]
-        self.holders, load_error = load_holders(folder)
+        self._power = POWERS[0][0]
+        self.holders, load_error = M.load(folder)
 
         self.link = link or G.GrblLink()
         queued = Qt.ConnectionType.QueuedConnection     # the link reports from its own thread
@@ -156,8 +179,12 @@ class CalibrateDialog(QDialog):
         v.addWidget(self._build_connect())
         body = QHBoxLayout()
         body.setSpacing(T.SP_16)
-        body.addWidget(self._build_head(), 0)
-        body.addWidget(self._build_holders(), 1)
+        body.addWidget(self._build_bed(), 1)
+        side = QVBoxLayout()
+        side.setSpacing(T.SP_16)
+        side.addWidget(self._build_head())
+        side.addWidget(self._build_holders(), 1)
+        body.addLayout(side, 0)
         v.addLayout(body, 1)
         v.addLayout(self._build_footer())
 
@@ -172,7 +199,7 @@ class CalibrateDialog(QDialog):
         self._refresh_rows()
         self._apply_state()
         if load_error:
-            self._show_message(load_error, "warning")
+            self._show_message(load_error, "danger")
 
     # -- layout ------------------------------------------------------------------------------
     def _build_connect(self) -> QFrame:
@@ -187,35 +214,43 @@ class CalibrateDialog(QDialog):
         self.connect_btn.clicked.connect(self._connect)
         head.addWidget(self.connect_btn)
         v.addLayout(head)
-        self.intro = label("Clear the bed, then connect. The laser homes itself: the head drives to its HOME "
-                           "corner, the same HOME printing uses. The laser stays off the whole time.",
+        self.intro = label("Put a blank in each holder and clear the bed, then connect. The laser homes itself "
+                           "first. Trace moves the head around a holder's border with the laser off; Draw "
+                           "burns that border at low power so you can see exactly where a keychain will go.",
                            "secondary", wrap=True)
         v.addWidget(self.intro)
         return frame
 
+    def _build_bed(self) -> QFrame:
+        frame, v = card()
+        v.addWidget(micro("The bed"))
+        self.bed = BedView()
+        self.bed.set_holders(self.holders)
+        v.addWidget(self.bed, 1)
+        return frame
+
     def _build_head(self) -> QFrame:
         frame, v = card()
-        frame.setFixedWidth(T.SIDEBAR_W)
-        v.addWidget(micro("Head position"))
-        readout = QGridLayout()
-        readout.setHorizontalSpacing(T.SP_8)
-        readout.setVerticalSpacing(0)
+        v.addWidget(micro("Head position · machine mm"))
+        readout = QHBoxLayout()
+        readout.setSpacing(T.SP_8)
         self.pos_x = label("—", size=T.SIZE_DISPLAY, weight=QFont.Weight.DemiBold)
         self.pos_y = label("—", size=T.SIZE_DISPLAY, weight=QFont.Weight.DemiBold)
-        for row, (axis, value) in enumerate((("X", self.pos_x), ("Y", self.pos_y))):
+        for axis, value in (("X", self.pos_x), ("Y", self.pos_y)):
             value.setFont(font(T.SIZE_DISPLAY, QFont.Weight.DemiBold, tabular=True))
-            readout.addWidget(label(axis, "tertiary", weight=QFont.Weight.DemiBold), row, 0,
-                              Qt.AlignmentFlag.AlignVCenter)
-            readout.addWidget(value, row, 1)
-            readout.addWidget(label("mm", "tertiary"), row, 2, Qt.AlignmentFlag.AlignVCenter)
-        readout.setColumnStretch(3, 1)
+            readout.addWidget(label(axis, "tertiary", weight=QFont.Weight.DemiBold), 0, Qt.AlignmentFlag.AlignVCenter)
+            readout.addWidget(value)
+            readout.addSpacing(T.SP_8)
+        readout.addStretch(1)
         v.addLayout(readout)
         self.motion = label("", "secondary")
         v.addWidget(self.motion)
 
-        v.addWidget(micro("Step"))
-        steps = QHBoxLayout()
-        steps.setSpacing(T.SP_4)
+        row = QHBoxLayout()
+        row.setSpacing(T.SP_16)
+        steps_box = QVBoxLayout()
+        steps_box.setSpacing(T.SP_4)
+        steps_box.addWidget(micro("Step"))
         self.step_group = QButtonGroup(self)
         for i, step in enumerate(STEPS_MM):
             b = button(f"{step:g} mm", "Segment")
@@ -223,8 +258,9 @@ class CalibrateDialog(QDialog):
             b.setChecked(i == 0)
             b.clicked.connect(lambda _c=False, s=step: setattr(self, "_step", s))
             self.step_group.addButton(b)
-            steps.addWidget(b, 1)
-        v.addLayout(steps)
+            steps_box.addWidget(b)
+        steps_box.addStretch(1)
+        row.addLayout(steps_box)
 
         pad = QGridLayout()
         pad.setSpacing(T.SP_4)
@@ -233,58 +269,75 @@ class CalibrateDialog(QDialog):
         for icon, tip, r, c, dx, dy in (("arrow-up", "Y +", 0, 1, 0, 1), ("arrow-left", "X −", 1, 0, -1, 0),
                                         ("arrow-right", "X +", 1, 2, 1, 0), ("arrow-down", "Y −", 2, 1, 0, -1)):
             b = button("")
-            b.setFixedHeight(T.CONTROL_H + T.SP_8)
-            b.setToolTip(f"Move {tip}")
+            b.setFixedSize(T.SP_48 + T.SP_16, T.CONTROL_H + T.SP_8)
+            b.setToolTip(f"Move {tip} (or the arrow keys)")
             b.clicked.connect(lambda _c=False, dx=dx, dy=dy: self._jog(dx, dy))
             pad.addWidget(b, r, c)
             self.move_btns.append(b)
             self._arrows.append((b, icon))
         self.home_btn = button("HOME")
-        self.home_btn.setFixedHeight(T.CONTROL_H + T.SP_8)
-        self.home_btn.setToolTip("Move the head back to HOME")
+        self.home_btn.setFixedSize(T.SP_48 + T.SP_16, T.CONTROL_H + T.SP_8)
         self.home_btn.clicked.connect(self._go_home)
         pad.addWidget(self.home_btn, 1, 1)
         self.move_btns.append(self.home_btn)
-        v.addLayout(pad)
-        v.addWidget(label("The arrow keys move one step too. Up adds to Y and right adds to X: watch "
-                          "the numbers to see which way that is on your laser.", "tertiary", wrap=True))
-        v.addStretch(1)
+        row.addLayout(pad)
+        row.addStretch(1)
+        v.addLayout(row)
         return frame
 
     def _build_holders(self) -> QFrame:
         frame, v = card()
-        v.addWidget(micro("Holders"))
-        v.addWidget(label("Move the head until the laser points at the middle of a holder, then press "
-                          "Save here. Trace runs the head along that keychain's border, laser off, so you "
-                          "can check it sits inside the holder.", "secondary", wrap=True))
+        v.setSpacing(T.SP_8)
+        v.addWidget(micro("Holders · machine.json"))
         self.rows: dict[str, dict] = {}
-        for key, name in SHAPES:
+        for shape in M.SHAPES:
+            holder = self.holders.get(shape)
             line = QFrame()
             line.setObjectName("HolderRow")
             h = QHBoxLayout(line)
-            h.setContentsMargins(0, T.SP_8, 0, T.SP_8)
-            h.setSpacing(T.SP_12)
-            h.addWidget(ShapeGlyph(key), 0, Qt.AlignmentFlag.AlignVCenter)
+            h.setContentsMargins(0, T.SP_8, 0, T.SP_4)
+            h.setSpacing(T.SP_8)
+            if holder:
+                h.addWidget(ShapeGlyph(shape, holder), 0, Qt.AlignmentFlag.AlignVCenter)
             text = QVBoxLayout()
             text.setSpacing(0)
-            text.addWidget(label(name, weight=QFont.Weight.DemiBold))
-            saved = label("", "secondary")
-            saved.setFont(font(T.SIZE_BODY, tabular=True))
-            text.addWidget(saved)
+            text.addWidget(label(NAMES[shape], weight=QFont.Weight.DemiBold))
+            where = label("", "secondary")
+            where.setFont(font(T.SIZE_BODY, tabular=True))
+            text.addWidget(where)
             h.addLayout(text, 1)
-            save = button("Save here", "Primary")
-            save.clicked.connect(lambda _c=False, k=key: self._save(k))
-            goto = button("Go to", "Ghost")
-            goto.clicked.connect(lambda _c=False, k=key: self._go_to(k))
-            trace = button("Trace", "Ghost")
-            trace.clicked.connect(lambda _c=False, k=key: self._trace(k))
-            for b in (goto, trace, save):
+            buttons = {}
+            for key, caption, name, tip in (("goto", "Go to", "Ghost", "Move to the centre, laser off"),
+                                            ("trace", "Trace", "Ghost", "Follow the border, laser off"),
+                                            ("draw", "Draw", "Ghost", "Burn the border at the chosen low power"),
+                                            ("save", "Save here", "Primary", "Make the head's position this holder's centre")):
+                b = button(caption, name)
+                b.setToolTip(tip)
+                b.clicked.connect(lambda _c=False, k=key, s=shape: self._row_action(k, s))
                 h.addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
+                buttons[key] = b
             v.addWidget(line)
-            self.rows[key] = {"saved": saved, "save": save, "goto": goto, "trace": trace}
+            self.rows[shape] = {"where": where, **buttons}
+
+        power = QHBoxLayout()
+        power.setSpacing(T.SP_4)
+        power.addWidget(label("Draw power", "secondary"), 1)
+        self.power_group = QButtonGroup(self)
+        for i, (s_value, caption) in enumerate(POWERS):
+            b = button(caption, "Segment")
+            b.setCheckable(True)
+            b.setChecked(i == 0)
+            b.clicked.connect(lambda _c=False, sv=s_value: setattr(self, "_power", sv))
+            self.power_group.addButton(b)
+            power.addWidget(b)
+        v.addSpacing(T.SP_8)
+        v.addLayout(power)
+        self.test_all_btn = button("Trace all 3 (laser off)", "Ghost")
+        self.test_all_btn.clicked.connect(self._trace_all)
+        v.addWidget(self.test_all_btn)
         v.addStretch(1)
-        v.addWidget(label("The printer agent reads the holders when it starts, so the next "
-                          "Start printing uses what you save here.", "tertiary", wrap=True))
+        v.addWidget(label("Saved positions go into machine.json. The printer uses them the next time "
+                          "it starts.", "tertiary", wrap=True))
         return frame
 
     def _build_footer(self) -> QHBoxLayout:
@@ -293,15 +346,23 @@ class CalibrateDialog(QDialog):
         self.message = label("", "secondary", wrap=True)
         h.addWidget(self.message, 1)
         self.done_btn = button("Done", "Primary")
-        self.done_btn.setDefault(False)
         self.done_btn.setAutoDefault(False)
         self.done_btn.clicked.connect(self._finish)
         h.addWidget(self.done_btn, 0, Qt.AlignmentFlag.AlignBottom)
         return h
 
-    # -- actions ---------------------------------------------------------------------------------
+    # -- coordinates -----------------------------------------------------------------------
+    def _to_home(self, shape: str) -> tuple[float, float]:
+        """A holder's machine.json centre in mm from HOME (where homing stopped)."""
+        h = self.holders[shape]
+        return h["x"] - self.link.home_mpos[0], h["y"] - self.link.home_mpos[1]
+
+    def _head_machine(self) -> tuple[float, float]:
+        return self.link.x + self.link.home_mpos[0], self.link.y + self.link.home_mpos[1]
+
+    # -- actions ---------------------------------------------------------------------------
     def _ready(self) -> bool:
-        return self._state == "connected" and not self._busy
+        return self._state == "connected" and not self._busy and bool(self.holders)
 
     def _connect(self) -> None:
         if self._state == "idle":
@@ -315,29 +376,68 @@ class CalibrateDialog(QDialog):
 
     def _go_home(self) -> None:
         if self._ready():
+            self.bed.set_active(None)
             self.link.go_home()
 
-    def _go_to(self, shape: str) -> None:
-        c = centre(self.holders, shape)
-        if self._ready() and c:
-            self.link.go_to(*c)
-
-    def _trace(self, shape: str) -> None:
-        c = centre(self.holders, shape)
-        if self._ready() and c:
-            self.link.trace(shape, *c)
-
-    def _save(self, shape: str) -> None:
+    def _row_action(self, key: str, shape: str) -> None:
         if not self._ready():
             return
-        x, y = self.link.x, self.link.y
-        try:
-            self.holders = save_holder(self._folder, shape, x, y)
-        except OSError as e:
-            self._show_message(f"Couldn't save {HOLDERS_FILE}: {e}", "danger")
+        x, y = self._to_home(shape)
+        self.bed.set_active(shape)
+        if key == "goto":
+            self.link.go_to(x, y)
+        elif key == "trace":
+            self.link.trace(shape, self.holders[shape], x, y, 0)
+        elif key == "draw" and self._confirm_draw(shape):
+            self.link.trace(shape, self.holders[shape], x, y, self._power)
+        elif key == "save":
+            self._save(shape)
+
+    def _trace_all(self) -> None:
+        if self._ready():
+            for shape in M.SHAPES:
+                x, y = self._to_home(shape)
+                self.link.trace(shape, self.holders[shape], x, y, 0)
+            self._show_message("Tracing heart, rectangle and circle in turn (laser off)…", "secondary")
+
+    def _confirm_draw(self, shape: str) -> bool:
+        if self._draw_ok:
+            return True
+        pct = dict(POWERS)[self._power]
+        box = QMessageBox(self)
+        box.setWindowTitle("Draw with the laser?")
+        box.setText("Draw with the laser?")
+        box.setInformativeText(f"The laser burns the {NAMES[shape].lower()} border at {pct} power on whatever "
+                               "is in the holder. Use a scrap blank, keep the lid closed and protect your eyes.")
+        box.setIconPixmap(theme.icon("alert", "warning", T.SP_32, stroke=1.5))
+        go = box.addButton("Draw", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        self._draw_ok = box.clickedButton() is go
+        return self._draw_ok
+
+    def _save(self, shape: str) -> None:
+        old = self.holders[shape]
+        mx, my = self._head_machine()
+        box = QMessageBox(self)
+        box.setWindowTitle(f"Save the {NAMES[shape].lower()} position?")
+        box.setText(f"Save the {NAMES[shape].lower()} position?")
+        box.setInformativeText(f"Its centre moves from X {mm(old['x'])}, Y {mm(old['y'])} to the head's "
+                               f"position, X {mm(mx)}, Y {mm(my)} (machine mm).")
+        save = box.addButton("Save", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        if box.clickedButton() is not save:
             return
+        try:
+            self.holders = M.save_centre(self._folder, shape, mx, my)
+        except (OSError, ValueError, KeyError) as e:
+            self._show_message(f"Couldn't save {M.FILE}: {e}", "danger")
+            return
+        self.bed.set_holders(self.holders)
         self._refresh_rows()
-        self._show_message(f"{shape.capitalize()} holder saved at X {mm(x)}, Y {mm(y)} mm.", "success")
+        self._show_message(f"{NAMES[shape]} centre saved at X {mm(mx)}, Y {mm(my)}. The printer uses it the "
+                           "next time it starts.", "success")
 
     def _finish(self) -> None:
         """Done, Esc or the close box: return the head to HOME and free the port, then close."""
@@ -364,14 +464,19 @@ class CalibrateDialog(QDialog):
         e.ignore()
         self._finish()
 
-    # -- from the link ---------------------------------------------------------------------------
-    def _on_position(self, x: float, y: float, state: str) -> None:
-        self.pos_x.setText(mm(x))
-        self.pos_y.setText(mm(y))
+    # -- from the link -----------------------------------------------------------------------
+    def _on_position(self, x: float, y: float, _state: str) -> None:
+        if self._state != "connected":
+            return
+        mx, my = x + self.link.home_mpos[0], y + self.link.home_mpos[1]
+        self.pos_x.setText(mm(mx))
+        self.pos_y.setText(mm(my))
+        self.bed.set_head((mx, my))
 
     def _on_connected(self, connected: bool) -> None:
         if connected and self._state == "connecting":
             self._state = "connected"
+            self._on_position(self.link.x, self.link.y, "")
         elif not connected and self._state != "closing":
             self._state = "idle"           # the link dropped (cable pulled, alarm)
         self._apply_state()
@@ -396,35 +501,39 @@ class CalibrateDialog(QDialog):
         s = self._state
         headline, tone = {
             "idle": ("Not connected", "text_3"),
-            "connecting": ("Connecting…", "text_2"),
-            "connected": (f"Connected on {self._port}", "success"),
+            "connecting": ("Connecting and homing…", "text_2"),
+            "connected": (f"Connected on {self._port} · homed", "success"),
             "closing": ("Returning to HOME…", "text_2"),
         }[s]
         self.headline.setText(headline)
         self.dot.set_state(tone, False)    # the printer panel owns the app's one pulse
         self.connect_btn.setVisible(s in ("idle", "connecting"))
-        self.connect_btn.setEnabled(s == "idle")
+        self.connect_btn.setEnabled(s == "idle" and bool(self.holders))
         self.connect_btn.setText("Connecting…" if s == "connecting" else f"Connect on {self._port}")
-        self.intro.setVisible(s in ("idle", "connecting"))
 
         live = s == "connected"
         self.motion.setText("Moving…" if live and self._busy else "")
         if not live:
             self.pos_x.setText("—")
             self.pos_y.setText("—")
-        for b in self.move_btns + self.step_group.buttons():
+            self.bed.set_head(None)
+        for b in self.move_btns + self.step_group.buttons() + self.power_group.buttons() + [self.test_all_btn]:
             b.setEnabled(live)
-        for key, row in self.rows.items():
-            has = centre(self.holders, key) is not None
-            row["save"].setEnabled(live)
-            row["goto"].setEnabled(live and has)
-            row["trace"].setEnabled(live and has)
+        for row in self.rows.values():
+            for key in ("goto", "trace", "draw", "save"):
+                row[key].setEnabled(live)
         self.done_btn.setEnabled(s != "closing")
         self._fit()
 
+    def _refresh_rows(self) -> None:
+        for shape, row in self.rows.items():
+            h = self.holders.get(shape)
+            row["where"].setText(f"X {mm(h['x'])}  ·  Y {mm(h['y'])}  ·  {h['width']:g} × {h['height']:g} mm"
+                                 if h else "Not in machine.json")
+        self._apply_state()
+
     def _fit(self) -> None:
-        """Keep the window tall enough for its content at its width, wrapped text included
-        (Qt's own minimum size measures wrapped text as one long line and would squeeze the jog pad)."""
+        """Keep the window tall enough for its content at its width, wrapped text included."""
         layout = self.layout()
         if layout is None:
             return
@@ -434,16 +543,10 @@ class CalibrateDialog(QDialog):
         if self.height() < need:
             self.resize(self.width(), need)
 
-    def _refresh_rows(self) -> None:
-        for key, row in self.rows.items():
-            c = centre(self.holders, key)
-            row["saved"].setText(f"X {mm(c[0])}  ·  Y {mm(c[1])} mm" if c else "Not set")
-            set_prop(row["saved"], "role", "secondary" if c else "warning")
-        self._apply_state()
-
     def _retheme(self) -> None:
         for b, icon in self._arrows:
             b.setIcon(QIcon(theme.icon(icon, "text_1")))    # Qt dims it when the button is disabled
+        self.bed.update()
 
     def showEvent(self, e) -> None:
         super().showEvent(e)

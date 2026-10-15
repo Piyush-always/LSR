@@ -32,7 +32,13 @@ Each keychain is engraved on its own shape's holder, and the head goes back to H
 
 **Stop printing** shuts the agent down the same way Ctrl+C does and returns the head to HOME. It asks first if a keychain is engraving. Start is blocked while another agent is already online, because two agents would print the same orders.
 
-There is nothing to calibrate. The three holder positions and blank sizes are fixed in the agent's `machine.json` (Tejas's tested values); the laser homes itself, and every keychain is placed from there. The setup checks confirm the file is present.
+The three holder positions and blank sizes are in the agent's `machine.json` (Tejas's tested values); the laser homes itself, and every keychain is placed from there.
+
+### Test holders
+
+**Test holders** (under the laser port, while printing is stopped) opens the laser itself. **Connect** homes it. The bed view shows the three holders where `machine.json` puts them and the head's live position. For each holder: **Go to** its centre, **Trace** its border with the laser off, or **Draw** the border at low power (2, 5 or 10 %) on a scrap blank to see exactly where a keychain lands. **Trace all 3** checks all three in turn.
+
+If a holder is off, jog the head onto its real centre (arrows or arrow keys, 10 / 1 / 0.1 mm) and press **Save here**: that holder's centre in `machine.json` is updated, and the printer uses it the next time it starts. **Done** returns the head to HOME.
 
 ## What it can't do
 
