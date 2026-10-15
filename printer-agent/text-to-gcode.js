@@ -253,7 +253,9 @@ function pathsToGcode(polylines, orderId, name, fontId, shape = 'rectangle') {
     lines.push('G21');          // mm mode
     lines.push('G90');          // absolute positioning
     lines.push('M5');           // laser off
-    lines.push(`F${SETTINGS.feedRate}`); // set default feedrate
+    // Feed rate set the way Tejas's hardware-tested code sets it (G1 F...). A bare
+    // "F800" line is the likely cause of the error:20 failures seen on Oct 14.
+    lines.push(`G1 F${SETTINGS.feedRate}`);
     lines.push('');
 
     for (const polyline of polylines) {

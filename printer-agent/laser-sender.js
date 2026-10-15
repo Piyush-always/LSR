@@ -245,9 +245,9 @@ function sendCommand(command) {
             if (/\bok\s*$/i.test(line) || /idleok\s*$/i.test(line)) {
                 finish(resolve);
             } else if (/^error/i.test(line)) {
-                finish(reject, new Error(`GRBL error: ${line}`));
+                finish(reject, new Error(`GRBL error: ${line} (on "${command}")`));
             } else if (/^ALARM/i.test(line)) {
-                finish(reject, new Error(`GRBL alarm: ${line}`));
+                finish(reject, new Error(`GRBL alarm: ${line} (on "${command}")`));
             }
             // Ignore everything else (status reports, [MSG:...], banners, etc.)
         };
