@@ -8,10 +8,14 @@ const { setHomeMachinePosition } = require('./holders');
 // Check Device Manager → Ports (COM & LPT) on the printer laptop
 function getEffectivePort() {
     if (process.env.LASER_PORT) return process.env.LASER_PORT;
+    // The production machine runs on Windows; COM8 is the documented default.
+    // Keep the USB device lookup for macOS/Linux installs below.
+    if (process.platform === 'win32') return 'COM8';
     try {
         if (fs.existsSync('/dev')) {
             const files = fs.readdirSync('/dev');
-            const found = files.find(f => f.startsWith('cu.usbmodem') || f.startsWith('cu.usbserial') || f.startsWith('cu.wchusbserial'));
+            const found = files.find(f => f.startsWith('cu.usbmodem') || f.startsWith('cu.usbserial') || f.startsWith('cu.wchusbserial'))
+                || files.find(f => f.startsWith('ttyACM') || f.startsWith('ttyUSB'));
             if (found) return '/dev/' + found;
         }
     } catch (e) {}
