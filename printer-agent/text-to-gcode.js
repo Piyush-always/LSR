@@ -281,8 +281,8 @@ function pathsToGcode(polylines, orderId, name, fontId, shape = 'rectangle') {
 
     lines.push('');
     lines.push('M5           ; laser off');
-    lines.push('G0 X0 Y0     ; return to HOME');
-    lines.push('G4 P1        ; wait 1 second before next job');
+    // The caller performs a physical $H after the job, matching the shape test.
+    lines.push('G4 P1        ; wait 1 second before physical homing');
 
     return lines.join('\n');
 }

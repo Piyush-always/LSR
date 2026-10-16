@@ -133,12 +133,11 @@ async function imageToGcode(imagePath, orderId, shape = 'rectangle') {
         }
     }
 
-    // Footer — laser off, return to HOME. No M2 (some GRBL builds reset the
-    // controller / close the serial port on M2, breaking the next job).
+    // Footer — laser off and let the queue drain. The caller performs a physical
+    // $H after the job. No M2 (some GRBL builds reset the controller / port).
     gcode.push('');
     gcode.push('M5           ; laser off');
-    gcode.push('G0 X0 Y0     ; return to HOME');
-    gcode.push('G4 P0.5      ; brief dwell so GRBL finishes moving before next job');
+    gcode.push('G4 P0.5      ; brief dwell before physical homing');
 
     const outputDir = path.join(__dirname, 'output');
     if (!fs.existsSync(outputDir)) {

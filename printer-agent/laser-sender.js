@@ -36,8 +36,7 @@ let isConnected = false;
 let stopRequested = false;            // set on shutdown: sendGcodeFile stops before its next line
 let inFlight = Promise.resolve();     // the command currently waiting for 'ok'
 
-const SHUTDOWN_STEP_TIMEOUT_MS = 5000;   // laser off / queue the move home
-const SHUTDOWN_HOME_TIMEOUT_MS = 30000;  // wait for the head to finish moving home
+const SHUTDOWN_STEP_TIMEOUT_MS = 5000;   // wait for laser-off acknowledgement
 
 /**
  * Connect to the laser printer via serial port.
@@ -189,8 +188,14 @@ async function sendInitSequence() {
     // with the machine position read here: after homing the CV-01 reports about
     // -30,-30, not 0,0. Going back to exactly where homing left the head never
     // touches a switch.
-    await sendCommand('G92.1');      // clear any prior G92 offset
-    await sendCommand('G92 X0 Y0');  // the homed position is now HOME
+    await resetHomeOrigin();
+}
+
+// After a physical $H, clear stale work offsets and establish the newly homed
+// switch position as HOME. machine.json coordinates are raw machine positions.
+async function resetHomeOrigin() {
+    await sendCommand('G92.1');
+    await sendCommand('G92 X0 Y0');
     let homeMpos = null, lastErr = null;
     for (let attempt = 0; attempt < 3 && !homeMpos; attempt++) {
         try {
@@ -201,10 +206,19 @@ async function sendInitSequence() {
     }
     if (!homeMpos) {
         // Without it every keychain would land ~30 mm off: refuse rather than guess.
-        throw new Error(`The laser did not report its machine position after homing (${lastErr.message}); not printing`);
+        const error = new Error(`The laser did not report its machine position after homing (${lastErr.message}); not printing`);
+        error.homing = true;
+        throw error;
     }
     setHomeMachinePosition(homeMpos);    // every script that connects places the holders from here
     console.log(`[HOME] HOME set at the homed position (machine X${homeMpos.x.toFixed(3)} Y${homeMpos.y.toFixed(3)})`);
+}
+
+// Match all-shapes-test.js: use the physical homing cycle, then rebuild HOME
+// so subsequent holder coordinates still resolve correctly.
+async function homeAndResetOrigin() {
+    await homeMachine();
+    await resetHomeOrigin();
 }
 
 // $H: GRBL replies only once the homing cycle has finished (CV-01 firmware may glue
@@ -354,18 +368,16 @@ function forceClose() {
 async function disconnect({ returnToOrigin = true } = {}) {
     stopRequested = true;
     if (serialPort && serialPort.isOpen && isConnected) {
-        // Let the line in progress finish, then laser off and back to HOME. G4 (dwell)
-        // is acknowledged only after every queued move has run, so its 'ok' means the
-        // head is at HOME. Only then close: closing the port can reset the board,
-        // which would leave the head wherever it stopped.
+        // Let the line in progress finish, turn the laser off, and physically home.
+        // Only then close: closing the port can reset the board, which would leave the
+        // head wherever it stopped.
         // returnToOrigin: false (the shape tests) leaves the head where it is.
         try {
             await withTimeout(inFlight, SHUTDOWN_STEP_TIMEOUT_MS);
             await withTimeout(sendCommand('M5'), SHUTDOWN_STEP_TIMEOUT_MS);
             if (returnToOrigin) {
-                await withTimeout(sendCommand('G0 X0 Y0'), SHUTDOWN_STEP_TIMEOUT_MS);
-                await withTimeout(sendCommand('G4 P0.1'), SHUTDOWN_HOME_TIMEOUT_MS);
-                console.log('[SERIAL] Laser off, head back at HOME');
+                await homeAndResetOrigin();
+                console.log('[SERIAL] Laser off, physically homed');
             } else {
                 console.log('[SERIAL] Laser off');
             }
@@ -435,4 +447,4 @@ function getCurrentPosition({ timeoutMs = 1000 } = {}) {
     });
 }
 
-module.exports = { connect, sendCommand, sendGcodeFile, listPorts, disconnect, getCurrentPosition, homeMachine, SERIAL_CONFIG };
+module.exports = { connect, sendCommand, sendGcodeFile, listPorts, disconnect, getCurrentPosition, homeMachine, homeAndResetOrigin, SERIAL_CONFIG };

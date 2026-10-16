@@ -4,7 +4,7 @@
 //     e.g.  node print-test.js all INVENGIC bebas
 // The machine homes first ($H). Each keychain is engraved on its holder (machine.json)
 // exactly as an order would be, and the head returns HOME. Ctrl+C stops safely.
-const { connect, sendGcodeFile, disconnect, SERIAL_CONFIG } = require('./laser-sender');
+const { connect, sendGcodeFile, disconnect, homeAndResetOrigin, SERIAL_CONFIG } = require('./laser-sender');
 const { SHAPES, holderCentre } = require('./holders');
 const { textToGcode, FONTS } = require('./text-to-gcode');
 
@@ -17,6 +17,8 @@ if (!shapes.every(s => SHAPES.includes(s)) || !FONTS[fontId]) {
 }
 
 let connected = false;
+let atPhysicalHome = false;
+let homingFailed = false;
 process.on('SIGINT', async () => {
     console.log('\n[TEST PRINT] Stopping: laser off, back to HOME...');
     if (connected) await disconnect();
@@ -29,6 +31,7 @@ async function main() {
         console.log('[TEST PRINT] Put a blank in each of those holders and keep the bed clear.');
         await connect();                                   // homes ($H)
         connected = true;
+        atPhysicalHome = true;
         for (const shape of shapes) {
             const c = holderCentre(shape);
             console.log(`\n[TEST PRINT] ${shape.toUpperCase()}: holder centre (${c.x.toFixed(1)}, ${c.y.toFixed(1)}) mm from HOME`);
@@ -38,13 +41,18 @@ async function main() {
                 const pct = Math.floor((line / total) * 10) * 10;
                 if (pct !== last) { last = pct; process.stdout.write(`  ${pct}%`); }
             });
-            console.log(`\n[TEST PRINT] ${shape} done; head back at HOME.`);
+            console.log(`\n[TEST PRINT] ${shape} engraved; returning to physical HOME...`);
+            atPhysicalHome = false;
+            await homeAndResetOrigin();
+            atPhysicalHome = true;
+            console.log(`[TEST PRINT] ${shape} done; physically homed.`);
         }
     } catch (error) {
+        homingFailed = Boolean(error.homing);
         console.error(`\n[TEST PRINT] Failed: ${error.message}`);
         process.exitCode = 1;
     } finally {
-        if (connected) await disconnect();             // laser off, back to HOME, then close
+        if (connected) await disconnect({ returnToOrigin: !atPhysicalHome && !homingFailed });
     }
 }
 

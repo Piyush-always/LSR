@@ -9,7 +9,7 @@ const readline = require('readline');
 
 // Engraving mode: 'vector' (filled letters via opentype) or 'raster' (pixel scan)
 const ENGRAVING_MODE = process.env.ENGRAVING_MODE || 'vector';
-const { connect, sendGcodeFile, listPorts, disconnect, getCurrentPosition, SERIAL_CONFIG } = require('./laser-sender');
+const { connect, sendGcodeFile, listPorts, disconnect, getCurrentPosition, homeAndResetOrigin, SERIAL_CONFIG } = require('./laser-sender');
 
 // Load MACHINE_ID configuration (config.json, env variable, or default 'laser-001')
 let CONFIG = {};
@@ -245,6 +245,13 @@ async function processQueue() {
                 await publishStatus({ current: null, lastError: err.message });
                 logEvent(`Failed: ${err.message}`);
 
+                if (err.homing) {
+                    laserConnected = false;
+                    console.error('[FAIL] Physical homing failed. The agent is stopping; inspect the machine before restarting.');
+                    await disconnect({ returnToOrigin: false });
+                    process.exit(2);
+                }
+
                 // If it was a serial/connection error, mark laser disconnected and reconnect
                 if (isSerialError(err)) {
                     laserConnected = false;
@@ -388,7 +395,10 @@ async function engraveUnit(unit, fileId, label) {
     });
     console.log(''); // newline after progress
 
-    // Sanity: did the laser actually return to HOME?
+    console.log('[HOME] Returning to physical HOME after this keychain...');
+    await homeAndResetOrigin();
+
+    // Sanity: did homing establish the expected work origin?
     await logCurrentPosition('Position after print');
 }
 
