@@ -57,6 +57,8 @@ class GrblLink(QObject):
         self._wco = (0.0, 0.0)
         self.connected = False
         self.x = self.y = 0.0                     # head position, mm from HOME
+        self.mpos = (0.0, 0.0)                    # head position, machine coordinates (as reported)
+        self.home_mpos = (0.0, 0.0)               # machine position of HOME (where homing stopped)
         self._jobs: queue.Queue = queue.Queue()
         threading.Thread(target=self._run, name="grbl-link", daemon=True).start()
 
@@ -132,6 +134,9 @@ class GrblLink(QObject):
             raise GrblError(f"Homing failed: {e}")
         for cmd in ("G21", "G90", "M5", "G92.1", "G92 X0 Y0"):   # same as the agent: HOME = homed spot
             self._send(cmd)
+        if not self._status():                            # machine.json is machine coordinates: needs HOME's
+            raise GrblError("The laser did not report its position after homing.")
+        self.home_mpos = self.mpos                        # ~(-30, -30) on the CV-01, not (0, 0)
         self.connected = True
         self.connected_changed.emit(True)
         self._report()
@@ -241,7 +246,10 @@ class GrblLink(QObject):
             return None
         state, kind, x, y = m.group(1), m.group(2), float(m.group(3)), float(m.group(4))
         if kind == "MPos":                                # report in work coordinates (from HOME)
+            self.mpos = (x, y)
             x, y = x - self._wco[0], y - self._wco[1]
+        else:
+            self.mpos = (x + self._wco[0], y + self._wco[1])
         self.x, self.y = x, y
         self.position.emit(x, y, state)
         return state

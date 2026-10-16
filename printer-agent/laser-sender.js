@@ -1,6 +1,7 @@
 const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
 const fs = require('fs');
+const { setHomeMachinePosition } = require('./holders');
 
 // ===== SERIAL PORT SETTINGS =====
 // Adjust COM port for your Creality CV-01 Pro
@@ -179,16 +180,27 @@ async function sendInitSequence() {
 
     // === DEFINE HOME (session origin) ===
     // Clear any stale work-coordinate offset, then make the homed position (0, 0) =
-    // HOME. machine.json's holder centres are mm from here, and every job returns
-    // here. Going back to exactly where homing left the head never touches a switch.
+    // HOME; every job returns here. machine.json's holder centres are MACHINE
+    // coordinates (Tejas's tools move there with G53), so holders.js converts them
+    // with the machine position read here: after homing the CV-01 reports about
+    // -30,-30, not 0,0. Going back to exactly where homing left the head never
+    // touches a switch.
     await sendCommand('G92.1');      // clear any prior G92 offset
     await sendCommand('G92 X0 Y0');  // the homed position is now HOME
-    try {   // for the log only: positions are measured from here, whatever the laser reports
-        const m = await getCurrentPosition();
-        console.log(`[HOME] HOME set at the homed position (the laser reports X${m.x.toFixed(3)} Y${m.y.toFixed(3)})`);
-    } catch (err) {
-        console.log('[HOME] HOME set at the homed position');
+    let homeMpos = null, lastErr = null;
+    for (let attempt = 0; attempt < 3 && !homeMpos; attempt++) {
+        try {
+            homeMpos = await getCurrentPosition();
+        } catch (err) {
+            lastErr = err;
+        }
     }
+    if (!homeMpos) {
+        // Without it every keychain would land ~30 mm off: refuse rather than guess.
+        throw new Error(`The laser did not report its machine position after homing (${lastErr.message}); not printing`);
+    }
+    setHomeMachinePosition(homeMpos);    // every script that connects places the holders from here
+    console.log(`[HOME] HOME set at the homed position (machine X${homeMpos.x.toFixed(3)} Y${homeMpos.y.toFixed(3)})`);
 }
 
 // $H: GRBL replies only once the homing cycle has finished (CV-01 firmware may glue

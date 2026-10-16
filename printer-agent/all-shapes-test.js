@@ -3,13 +3,11 @@
 // The machine physically homes first. Keep the bed clear and use a blank on
 // each selected holder. Default laser power is low (S20); override with LASER_POWER.
 //
-// Positions and sizes come from machine.json, in mm from HOME (where homing leaves
-// the head): heart 45x45 at (60,28), rectangle 29x61 at (170,28), circle 90 mm at
-// (97,135), drawn with the same outlines as before. Moves are measured from the
-// homed spot, not the laser's machine coordinates: before the first homing after
-// power-on those are off by the distance from the power-on spot to HOME (~30 mm).
+// Positions and sizes come from machine.json, in machine coordinates (MPos):
+// heart 45x45 at (60,28), rectangle 29x61 at (170,28), circle 90 mm at (97,135),
+// moved to with G53 and drawn with the same outlines as Tejas's original.
 const { connect, sendCommand, homeMachine, disconnect } = require('./laser-sender');
-const { SHAPES, holderCentre, borderPolyline } = require('./holders');
+const { SHAPES, HOLDERS, borderPolyline } = require('./holders');
 
 const FEED_MM_MIN = 800;
 const LASER_POWER = Number(process.env.LASER_POWER || 20);
@@ -20,13 +18,16 @@ async function send(command) {
 }
 
 async function drawShape(shape) {
-    const center = holderCentre(shape);
-    console.log(`\n[${shape.toUpperCase()}] Center X${center.x} Y${center.y} mm from HOME; laser S${LASER_POWER}`);
+    const center = HOLDERS[shape];
+    console.log(`\n[${shape.toUpperCase()}] Center MPos X${center.x} Y${center.y}; laser S${LASER_POWER}`);
     await send('M5');
     await send('G21');
     await send('G90');
+    await send(`G53 G0 X${center.x} Y${center.y}`);
+    // Set the selected holder center as the local origin for its outline.
+    await send('G92 X0 Y0');
 
-    const points = borderPolyline(shape).map(([x, y]) => [center.x + x, center.y + y]);
+    const points = borderPolyline(shape);
     const [startX, startY] = points[0];
     await send(`G0 F${FEED_MM_MIN} X${startX.toFixed(3)} Y${startY.toFixed(3)}`);
     await send(`M3 S${LASER_POWER}`);
@@ -50,7 +51,7 @@ async function main() {
             throw new Error('LASER_POWER must be between 0 and 1000');
         }
         console.log(`[SHAPE TEST] Running ${shapes.join(', ')}; power S${LASER_POWER}. Keep the bed path clear.`);
-        await connect(); // Homes the machine and makes the homed spot 0,0 before any movement.
+        await connect(); // Homes the machine before any movement.
         connected = true;
         for (const shape of shapes) await drawShape(shape);
         console.log('\n[SHAPE TEST] Returning to physical HOME...');

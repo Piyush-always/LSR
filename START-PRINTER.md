@@ -45,7 +45,7 @@ Replace `COM8` with the laser's port. When it says `Load a fresh … blank`, loa
 
 With the agent stopped, in the `printer-agent` folder: `node all-shapes-test.js` homes the laser and draws the heart, rectangle and circle outlines at low power (S20) exactly where and how big every keychain is engraved (`node all-shapes-test.js heart` for one). The same outlines and positions are in `machine.json`.
 
-Every position is measured from HOME after homing, so it doesn't matter where the head is when the laser is switched on (before its first homing the laser counts from that spot, about 30 mm off). If a holder moves: LaserQueue.exe → **Test holders** → jog onto its new centre → **Save here**.
+The positions are machine coordinates, the same numbers Tejas's `auto-position-test.py` moves to with `G53`. After homing the laser reports HOME as about −30,−30; the agent reads that and goes to the same spot. If a holder moves: LaserQueue.exe → **Test holders** → jog onto its new centre → **Save here**.
 
 ## Test print without a website order
 

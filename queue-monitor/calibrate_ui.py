@@ -68,12 +68,13 @@ class ShapeGlyph(QWidget):
 
 
 class BedView(QWidget):
-    """The bed from above in mm from HOME (X right, Y up): HOME, the three holders, the head."""
+    """The bed from above in machine mm (X right, Y up): HOME, the three holders, the head."""
 
     def __init__(self) -> None:
         super().__init__()
         self._holders: dict = {}
         self._head: tuple[float, float] | None = None
+        self._home: tuple[float, float] | None = None      # known once homed: ~(-30, -30)
         self._active: str | None = None
         self.setMinimumSize(360, 300)
 
@@ -83,6 +84,10 @@ class BedView(QWidget):
 
     def set_head(self, xy: tuple[float, float] | None) -> None:
         self._head = xy
+        self.update()
+
+    def set_home(self, xy: tuple[float, float] | None) -> None:
+        self._home = xy
         self.update()
 
     def set_active(self, shape: str | None) -> None:
@@ -95,7 +100,8 @@ class BedView(QWidget):
         hs = self._holders
         x1 = max([h["x"] + h["width"] / 2 for h in hs.values()] + [100]) + 15
         y1 = max([h["y"] + h["height"] / 2 for h in hs.values()] + [100]) + 15
-        x0, y0, pad = -10.0, -10.0, T.SP_16
+        hx, hy = self._home or (0.0, 0.0)
+        x0, y0, pad = min(-10.0, hx - 10), min(-10.0, hy - 10), T.SP_16
         s = min((self.width() - 2 * pad) / (x1 - x0), (self.height() - 2 * pad - T.SP_16) / (y1 - y0))
         left = (self.width() - (x1 - x0) * s) / 2
         top = (self.height() - T.SP_16 - (y1 - y0) * s) / 2     # centred, room for the axis note
@@ -114,11 +120,12 @@ class BedView(QWidget):
                 p.drawLine(to(x0, g), to(x1, g))
 
         p.setFont(font(T.SIZE_MICRO, QFont.Weight.DemiBold, track_em=T.TRACK_MICRO))
-        p.setPen(QPen(theme.c("text_2"), 1.5))
-        home = to(0, 0)
-        p.drawLine(home + QPointF(-6, 0), home + QPointF(6, 0))
-        p.drawLine(home + QPointF(0, -6), home + QPointF(0, 6))
-        p.drawText(home + QPointF(8, -6), "HOME")
+        if self._home is not None:
+            p.setPen(QPen(theme.c("text_2"), 1.5))
+            home = to(*self._home)
+            p.drawLine(home + QPointF(-6, 0), home + QPointF(6, 0))
+            p.drawLine(home + QPointF(0, -6), home + QPointF(0, 6))
+            p.drawText(home + QPointF(8, -6), "HOME")
         p.setPen(theme.c("text_3"))
         p.drawText(QRectF(to(x0, y0), to(x1, y0 - 12 / s)).adjusted(0, 2, -4, 0),
                    int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop), "X RIGHT  ·  Y UP  ·  MM")
@@ -231,7 +238,7 @@ class TestHoldersDialog(QDialog):
 
     def _build_head(self) -> QFrame:
         frame, v = card()
-        v.addWidget(micro("Head position · mm from HOME"))
+        v.addWidget(micro("Head position · machine mm"))
         readout = QHBoxLayout()
         readout.setSpacing(T.SP_8)
         self.pos_x = label("—", size=T.SIZE_DISPLAY, weight=QFont.Weight.DemiBold)
@@ -351,13 +358,14 @@ class TestHoldersDialog(QDialog):
         h.addWidget(self.done_btn, 0, Qt.AlignmentFlag.AlignBottom)
         return h
 
-    # -- coordinates: everything is mm from HOME, the spot where homing left the head ------------
+    # -- coordinates: machine.json and this window are machine mm (what Tejas's G53 tools use);
+    # the link moves in mm from HOME, where homing stopped (~(-30, -30) in machine mm) ----------
     def _to_home(self, shape: str) -> tuple[float, float]:
         h = self.holders[shape]
-        return h["x"], h["y"]
+        return h["x"] - self.link.home_mpos[0], h["y"] - self.link.home_mpos[1]
 
-    def _head(self) -> tuple[float, float]:
-        return self.link.x, self.link.y
+    def _head_machine(self) -> tuple[float, float]:
+        return self.link.x + self.link.home_mpos[0], self.link.y + self.link.home_mpos[1]
 
     # -- actions ---------------------------------------------------------------------------
     def _ready(self) -> bool:
@@ -417,12 +425,12 @@ class TestHoldersDialog(QDialog):
 
     def _save(self, shape: str) -> None:
         old = self.holders[shape]
-        mx, my = self._head()
+        mx, my = self._head_machine()
         box = QMessageBox(self)
         box.setWindowTitle(f"Save the {NAMES[shape].lower()} position?")
         box.setText(f"Save the {NAMES[shape].lower()} position?")
         box.setInformativeText(f"Its centre moves from X {mm(old['x'])}, Y {mm(old['y'])} to the head's "
-                               f"position, X {mm(mx)}, Y {mm(my)} (mm from HOME).")
+                               f"position, X {mm(mx)}, Y {mm(my)} (machine mm).")
         save = box.addButton("Save", QMessageBox.ButtonRole.AcceptRole)
         box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
         box.exec()
@@ -467,13 +475,15 @@ class TestHoldersDialog(QDialog):
     def _on_position(self, x: float, y: float, _state: str) -> None:
         if self._state != "connected":
             return
-        self.pos_x.setText(mm(x))
-        self.pos_y.setText(mm(y))
-        self.bed.set_head((x, y))
+        mx, my = x + self.link.home_mpos[0], y + self.link.home_mpos[1]
+        self.pos_x.setText(mm(mx))
+        self.pos_y.setText(mm(my))
+        self.bed.set_head((mx, my))
 
     def _on_connected(self, connected: bool) -> None:
         if connected and self._state == "connecting":
             self._state = "connected"
+            self.bed.set_home(self.link.home_mpos)
             self._on_position(self.link.x, self.link.y, "")
         elif not connected and self._state != "closing":
             self._state = "idle"           # the link dropped (cable pulled, alarm)

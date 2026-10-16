@@ -114,8 +114,10 @@ async function start() {
 function printConfigBanner() {
     console.log(`[CONFIG] HOME = (0, 0): where homing ($H) leaves the head. Holders from machine.json:`);
     for (const shape of SHAPES) {
+        const c = holderCentre(shape);
         const h = HOLDERS[shape];
-        console.log(`[CONFIG] ${shape.padEnd(9)} centre (${h.x}, ${h.y}) mm from HOME, outline ${h.width} x ${h.height} mm`);
+        console.log(`[CONFIG] ${shape.padEnd(9)} machine (${h.x}, ${h.y}) = (${c.x.toFixed(1)}, ${c.y.toFixed(1)}) mm from HOME, `
+            + `outline ${h.width} x ${h.height} mm`);
     }
     console.log(`[CONFIG] After each keychain the head returns to HOME.`);
     if (CONFIRM_FRESH_BLANK) {
