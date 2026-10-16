@@ -6,10 +6,9 @@
 const opentype = require('opentype.js');
 const fs = require('fs');
 const path = require('path');
-const { placement } = require('./holders');
+const { placement, fitInside } = require('./holders');
 
-// Where a keychain lands (its holder, the real blank's border, and how the website
-// design is turned and scaled onto that blank) is all in holders.js.
+// Where a keychain lands (its holder and its outline, from machine.json) is in holders.js.
 
 
 // ===== KEYCHAIN LAYOUT (mirror of js/keychain-layout.js KEYCHAIN_LAYOUT) =====
@@ -40,6 +39,7 @@ const FONTS = {
     pacifico:   { file: 'Pacifico-Regular.ttf',         fixedCapHeight: 5 },
 };
 const DEFAULT_FONT_ID = 'pixel';
+const TEXT_MARGIN_MM = 1;      // the name stays at least this far inside the keychain outline
 const EMOJI_FONT_FILE = 'NotoEmoji-Regular.ttf';
 const EMOJI_FALLBACK_GLYPH = '?';
 
@@ -83,15 +83,22 @@ async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle')
     // Selective uppercase: Latin letters only, preserve emoji + symbols
     const cleanName = name.replace(/[a-z]/g, c => c.toUpperCase());
 
-    // Layout as in Tejas's tested code: the blank's border (no hole), and the name
-    // centred on the blank, cap height at most 48% of the blank's height, scaled
-    // down to fit 78% of its width. (A dragged position from the website isn't used
-    // while the website shows different blank sizes.)
+    // The keychain's outline as all-shapes-test.js draws it (no hole), and the name
+    // centred inside it: cap height at most 48% of the keychain across, scaled down to
+    // fit 78% of its length. On the upright rectangle the name runs along its length
+    // (turned 90 degrees, reading upwards), as the website shows it along the long side.
+    // (A dragged position from the website isn't used: the website's sizes differ.)
     const key = (shape === 'circle' || shape === 'heart') ? shape : 'rectangle';
     const place = placement(key);
     const { width, height } = place.blank;
-    const textPolylines = buildTextPolylines(cleanName, cleanFontId, Math.min(fontSize, height * 0.48),
-        place.centre.x, place.centre.y, width * 0.78);
+    const along = place.turned ? height : width, across = place.turned ? width : height;
+    const laidOut = buildTextPolylines(cleanName, cleanFontId, Math.min(fontSize, across * 0.48), 0, 0, along * 0.78);
+    const placed = laidOut.map(poly => poly.map(([x, y]) => (place.turned
+        ? [place.centre.x - y, place.centre.y + x]
+        : [place.centre.x + x, place.centre.y + y])));
+    // Keep the whole name at least TEXT_MARGIN_MM inside the outline (a long name on the
+    // heart would otherwise reach its narrowing sides): shrink it around the centre.
+    const textPolylines = fitInside(place.border, placed, place.centre, TEXT_MARGIN_MM);
 
     // All paths in machine coordinates (mm from HOME, Y-up)
     const paths = [place.border, ...textPolylines];

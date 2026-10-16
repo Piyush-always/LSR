@@ -16,8 +16,9 @@ const { placement } = require('./holders');
 // =====================================================================
 
 // Per shape: the photo area of the website design (mm; imageArea in
-// js/keychain-layout.js). The photo is fitted inside the real blank's border,
-// 0.5 mm clear of it, and centred on the holder.
+// js/keychain-layout.js). The photo is fitted inside the keychain's outline,
+// PHOTO_MARGIN_MM clear of it, centred on the holder; on the upright rectangle it is
+// turned 90 degrees to run along its length, like the name.
 const SHAPE_LAYOUT = {
     rectangle: { area: { x: 13, y: 4, width: 56, height: 27 } },
     circle: { area: { x: 2, y: 2, width: 46, height: 46 } },
@@ -26,7 +27,8 @@ const SHAPE_LAYOUT = {
 const IMAGE_AREA = SHAPE_LAYOUT.rectangle.area;
 // The website's heart (the photo's mask) is fuller at the bottom than Tejas's
 // heart border; this keeps the whole photo inside his border.
-const PHOTO_FIT = { heart: 0.84 };
+const PHOTO_FIT = { heart: 0.78 };
+const PHOTO_MARGIN_MM = 1.3;   // outline clearance; pixel edges take ~0.3 mm, leaving ~1 mm like the name
 
 const SETTINGS = {
     feedRate: 1500,         // mm/min — engraving speed (lower = deeper/darker)
@@ -52,8 +54,9 @@ async function imageToGcode(imagePath, orderId, shape = 'rectangle') {
     const key = SHAPE_LAYOUT[shape] ? shape : 'rectangle';
     const area = SHAPE_LAYOUT[key].area;
     const place = placement(key);
-    const { width, height, inset } = place.blank;
-    const fit = Math.min((width - 2 * inset - 1) / area.width, (height - 2 * inset - 1) / area.height)
+    const along = place.turned ? place.blank.height : place.blank.width;
+    const across = place.turned ? place.blank.width : place.blank.height;
+    const fit = Math.min((along - 2 * PHOTO_MARGIN_MM) / area.width, (across - 2 * PHOTO_MARGIN_MM) / area.height)
         * (PHOTO_FIT[key] || 1);
 
     // Engrave-resolution grid, resampled for the size on the real blank so the burn
@@ -66,11 +69,14 @@ async function imageToGcode(imagePath, orderId, shape = 'rectangle') {
     ctx.drawImage(img, 0, 0, cols, rows);
     const pixels = ctx.getImageData(0, 0, cols, rows).data;
 
-    // Row 0 is the photo's top edge; X grows to the right, rows step down (machine
-    // Y-up), all around the holder centre.
+    // Row 0 is the photo's top edge; columns run along the photo, rows step down,
+    // all around the holder centre (turned 90 degrees on the upright rectangle).
     const stepX = (area.width * fit) / cols, stepY = (area.height * fit) / rows;   // mm on the blank
-    const left = place.centre.x - (area.width * fit) / 2, top = place.centre.y + (area.height * fit) / 2;
-    const at = (row, col) => `X${(left + col * stepX).toFixed(3)} Y${(top - row * stepY).toFixed(3)}`;
+    const at = (row, col) => {
+        const dx = col * stepX - (area.width * fit) / 2, dy = (area.height * fit) / 2 - row * stepY;
+        const [x, y] = place.turned ? [-dy, dx] : [dx, dy];
+        return `X${(place.centre.x + x).toFixed(3)} Y${(place.centre.y + y).toFixed(3)}`;
+    };
 
     const gcode = [];
     gcode.push('; Raster keychain G-code (uploaded image)');

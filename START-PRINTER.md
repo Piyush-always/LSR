@@ -41,6 +41,10 @@ node index.js
 
 Replace `COM8` with the laser's port. When it says `Load a fresh … blank`, load one and press **Enter**. To stop, press **Ctrl + C** (the head returns to HOME).
 
+## Check the three holders
+
+With the agent stopped, in the `printer-agent` folder: `node all-shapes-test.js` homes the laser and draws the heart, rectangle and circle outlines at low power (S20) exactly where and how big every keychain is engraved (`node all-shapes-test.js heart` for one). The same outlines and positions are in `machine.json`.
+
 ## Test print without a website order
 
 With the agent stopped, in the `printer-agent` folder: `node print-test.js all INVENGIC bebas` engraves the name on all three holders (or use `heart`, `rectangle` or `circle` instead of `all`). The laser homes first and returns HOME after each one.

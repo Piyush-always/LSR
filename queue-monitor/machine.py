@@ -1,8 +1,8 @@
 """The three holders on the bed: machine.json in the printer-agent folder.
 
 The printer agent reads the same file. x, y = a holder's centre in MACHINE
-coordinates (mm from physical home); width, height, inset = the blank and how
-far inside its edge the border is engraved. The border shapes match
+coordinates (mm from physical home); width, height = the keychain outline that
+all-shapes-test.js draws (hardware-verified). The shapes match
 printer-agent/holders.js exactly, so a trace here follows what a job engraves.
 """
 from __future__ import annotations
@@ -14,7 +14,7 @@ from pathlib import Path
 
 SHAPES = ("heart", "rectangle", "circle")
 FILE = "machine.json"
-_KEYS = ("x", "y", "width", "height", "inset")
+_KEYS = ("x", "y", "width", "height")
 
 
 def load(folder: str | None) -> tuple[dict, str]:
@@ -47,11 +47,10 @@ def save_centre(folder: str, shape: str, x: float, y: float) -> dict:
 
 
 def border(shape: str, holder: dict) -> list[tuple[float, float]]:
-    """The engraved border around (0, 0), mm, Y-up (same as holders.js borderPolyline)."""
-    w = holder["width"] - 2 * holder["inset"]
-    h = holder["height"] - 2 * holder["inset"]
+    """The keychain outline around (0, 0), mm, Y-up (same as holders.js borderPolyline)."""
+    w, h = holder["width"], holder["height"]
     if shape == "circle":
-        r = min(w, h) / 2
+        r = w / 2
         return [(r * math.cos(a), r * math.sin(a)) for a in (2 * math.pi * i / 64 for i in range(65))]
     if shape == "heart":
         raw = []
@@ -62,10 +61,5 @@ def border(shape: str, holder: dict) -> list[tuple[float, float]]:
         xs, ys = [p[0] for p in raw], [p[1] for p in raw]
         x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
         return [(((x - x0) / (x1 - x0) - 0.5) * w, ((y - y0) / (y1 - y0) - 0.5) * h) for x, y in raw]
-    # rectangle with rounded corners
-    r, hx, hy, pts = min(1.5, holder["height"] / 4), w / 2, h / 2, []
-    for cx, cy, a0 in ((hx - r, -hy + r, -math.pi / 2), (hx - r, hy - r, 0.0),
-                       (-hx + r, hy - r, math.pi / 2), (-hx + r, -hy + r, math.pi)):
-        pts += [(cx + r * math.cos(a0 + math.pi / 2 * i / 8), cy + r * math.sin(a0 + math.pi / 2 * i / 8))
-                for i in range(9)]
-    return pts + [pts[0]]
+    hx, hy = w / 2, h / 2
+    return [(-hx, -hy), (hx, -hy), (hx, hy), (-hx, hy), (-hx, -hy)]

@@ -429,4 +429,4 @@ function getCurrentPosition({ timeoutMs = 1000 } = {}) {
     });
 }
 
-module.exports = { connect, sendCommand, sendGcodeFile, listPorts, disconnect, getCurrentPosition, homeMachinePosition, SERIAL_CONFIG };
+module.exports = { connect, sendCommand, sendGcodeFile, listPorts, disconnect, getCurrentPosition, homeMachine, homeMachinePosition, SERIAL_CONFIG };

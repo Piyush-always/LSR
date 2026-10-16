@@ -1,5 +1,6 @@
-// The three holders on the bed and the blank in each: machine.json (Tejas's
-// hardware-tested values). Nothing is calibrated per PC.
+// The three holders on the bed: machine.json, matching all-shapes-test.js, which
+// draws each outline at the right place, size and shape on the machine
+// (hardware-verified). Nothing is calibrated per PC.
 //
 // Holder centres are MACHINE coordinates (MPos) from physical home ($H). After
 // homing, laser-sender reports where the head actually stopped, and every position
@@ -16,9 +17,8 @@ function loadMachine() {
     const machine = JSON.parse(fs.readFileSync(MACHINE_PATH, 'utf-8'));
     for (const shape of SHAPES) {
         const h = (machine.holders || {})[shape];
-        const ok = h && ['x', 'y', 'width', 'height', 'inset'].every(k => Number.isFinite(h[k]))
-            && h.width > 0 && h.height > 0 && h.inset >= 0 && h.inset * 2 < Math.min(h.width, h.height);
-        if (!ok) throw new Error(`machine.json: the ${shape} holder needs numbers x, y, width, height and inset`);
+        const ok = h && ['x', 'y', 'width', 'height'].every(k => Number.isFinite(h[k])) && h.width > 0 && h.height > 0;
+        if (!ok) throw new Error(`machine.json: the ${shape} holder needs numbers x, y, width and height`);
     }
     return machine.holders;
 }
@@ -42,13 +42,12 @@ function holderCentre(shape) {
     return { x: h.x - homeMpos.x, y: h.y - homeMpos.y };
 }
 
-// The engraved border around (0, 0), drawn as Tejas's code draws it: inset from
-// the blank's edge; a circle, his parametric heart, or a rounded rectangle.
+// The keychain outline around (0, 0), exactly as all-shapes-test.js draws it:
+// his parametric heart scaled to width x height, a circle, or a rectangle.
 function borderPolyline(shape) {
-    const { width, height, inset } = holder(shape);
-    const w = width - 2 * inset, h = height - 2 * inset;
+    const { width, height } = holder(shape);
     if (shape === 'circle') {
-        const r = Math.min(w, h) / 2, segments = 64;
+        const r = width / 2, segments = 64;
         const pts = [];
         for (let i = 0; i <= segments; i++) {
             const a = (2 * Math.PI * i) / segments;
@@ -65,33 +64,56 @@ function borderPolyline(shape) {
         }
         const xs = raw.map(p => p[0]), ys = raw.map(p => p[1]);
         const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-        return raw.map(([x, y]) => [((x - minX) / (maxX - minX) - 0.5) * w, ((y - minY) / (maxY - minY) - 0.5) * h]);
+        return raw.map(([x, y]) => [((x - minX) / (maxX - minX) - 0.5) * width, ((y - minY) / (maxY - minY) - 0.5) * height]);
     }
-    // rectangle: rounded corners, radius as in Tejas's code
-    const r = Math.min(1.5, height / 4), hx = w / 2, hy = h / 2, segs = 8, pts = [];
-    const arc = (cx, cy, a0, a1) => {
-        for (let i = 0; i <= segs; i++) {
-            const a = a0 + ((a1 - a0) * i) / segs;
-            pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
-        }
-    };
-    arc(hx - r, -hy + r, -Math.PI / 2, 0);
-    arc(hx - r, hy - r, 0, Math.PI / 2);
-    arc(-hx + r, hy - r, Math.PI / 2, Math.PI);
-    arc(-hx + r, -hy + r, Math.PI, 1.5 * Math.PI);
-    pts.push(pts[0]);
-    return pts;
+    const hx = width / 2, hy = height / 2;
+    return [[-hx, -hy], [hx, -hy], [hx, hy], [-hx, hy], [-hx, -hy]];
 }
 
-// Everything the engravers need for one shape, in mm from HOME.
+// Everything the engravers need for one shape, in mm from HOME. `turned` is true for
+// a holder taller than it is wide (the rectangle stands upright on the bed): the
+// name and photo are turned 90 degrees to run along its length.
 function placement(shape) {
     const h = holder(shape);
     const centre = holderCentre(shape);
     return {
         centre,
-        blank: { width: h.width, height: h.height, inset: h.inset },
+        blank: { width: h.width, height: h.height },
+        turned: h.height > h.width,
         border: borderPolyline(shape).map(([x, y]) => [centre.x + x, centre.y + y]),
     };
 }
 
-module.exports = { MACHINE_PATH, SHAPES, HOLDERS, setHomeMachinePosition, holderCentre, borderPolyline, placement };
+// Smallest distance (mm) from the polylines' points to the outline; negative if any is outside.
+function clearance(outline, polylines) {
+    let worst = Infinity;
+    for (const poly of polylines) {
+        for (const [px, py] of poly) {
+            let inside = false, d = Infinity;
+            for (let i = 0, j = outline.length - 1; i < outline.length; j = i++) {
+                const [xi, yi] = outline[i], [xj, yj] = outline[j];
+                if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
+                const dx = xi - xj, dy = yi - yj, len = dx * dx + dy * dy;
+                const t = len ? Math.max(0, Math.min(1, ((px - xj) * dx + (py - yj) * dy) / len)) : 0;
+                d = Math.min(d, Math.hypot(px - xj - t * dx, py - yj - t * dy));
+            }
+            worst = Math.min(worst, inside ? d : -d);
+        }
+    }
+    return worst;
+}
+
+// Shrink polylines around `centre` until every point is at least `margin` mm inside the
+// outline (the heart narrows towards its tip). Unchanged if they already fit.
+function fitInside(outline, polylines, centre, margin) {
+    const scaled = (s) => polylines.map(poly => poly.map(([x, y]) => [centre.x + (x - centre.x) * s, centre.y + (y - centre.y) * s]));
+    if (clearance(outline, polylines) >= margin) return polylines;
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 20; i++) {
+        const mid = (lo + hi) / 2;
+        if (clearance(outline, scaled(mid)) >= margin) lo = mid; else hi = mid;
+    }
+    return scaled(lo);
+}
+
+module.exports = { MACHINE_PATH, SHAPES, HOLDERS, setHomeMachinePosition, holderCentre, borderPolyline, placement, clearance, fitInside };
