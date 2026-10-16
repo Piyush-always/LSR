@@ -4,8 +4,8 @@
 //     e.g.  node print-test.js all INVENGIC bebas
 // The machine homes first ($H). Each keychain is engraved on its holder (machine.json)
 // exactly as an order would be, and the head returns HOME. Ctrl+C stops safely.
-const { connect, sendGcodeFile, disconnect, homeMachinePosition, SERIAL_CONFIG } = require('./laser-sender');
-const { SHAPES, setHomeMachinePosition, holderCentre } = require('./holders');
+const { connect, sendGcodeFile, disconnect, SERIAL_CONFIG } = require('./laser-sender');
+const { SHAPES, holderCentre } = require('./holders');
 const { textToGcode, FONTS } = require('./text-to-gcode');
 
 const [which = '', name = 'INVENGIC', fontId = 'pixel'] = process.argv.slice(2);
@@ -29,7 +29,6 @@ async function main() {
         console.log('[TEST PRINT] Put a blank in each of those holders and keep the bed clear.');
         await connect();                                   // homes ($H)
         connected = true;
-        setHomeMachinePosition(homeMachinePosition());
         for (const shape of shapes) {
             const c = holderCentre(shape);
             console.log(`\n[TEST PRINT] ${shape.toUpperCase()}: holder centre (${c.x.toFixed(1)}, ${c.y.toFixed(1)}) mm from HOME`);

@@ -68,7 +68,7 @@ class ShapeGlyph(QWidget):
 
 
 class BedView(QWidget):
-    """The bed from above in machine mm (X right, Y up): HOME, the three holders, the head."""
+    """The bed from above in mm from HOME (X right, Y up): HOME, the three holders, the head."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -231,7 +231,7 @@ class TestHoldersDialog(QDialog):
 
     def _build_head(self) -> QFrame:
         frame, v = card()
-        v.addWidget(micro("Head position · machine mm"))
+        v.addWidget(micro("Head position · mm from HOME"))
         readout = QHBoxLayout()
         readout.setSpacing(T.SP_8)
         self.pos_x = label("—", size=T.SIZE_DISPLAY, weight=QFont.Weight.DemiBold)
@@ -351,14 +351,13 @@ class TestHoldersDialog(QDialog):
         h.addWidget(self.done_btn, 0, Qt.AlignmentFlag.AlignBottom)
         return h
 
-    # -- coordinates -----------------------------------------------------------------------
+    # -- coordinates: everything is mm from HOME, the spot where homing left the head ------------
     def _to_home(self, shape: str) -> tuple[float, float]:
-        """A holder's machine.json centre in mm from HOME (where homing stopped)."""
         h = self.holders[shape]
-        return h["x"] - self.link.home_mpos[0], h["y"] - self.link.home_mpos[1]
+        return h["x"], h["y"]
 
-    def _head_machine(self) -> tuple[float, float]:
-        return self.link.x + self.link.home_mpos[0], self.link.y + self.link.home_mpos[1]
+    def _head(self) -> tuple[float, float]:
+        return self.link.x, self.link.y
 
     # -- actions ---------------------------------------------------------------------------
     def _ready(self) -> bool:
@@ -418,12 +417,12 @@ class TestHoldersDialog(QDialog):
 
     def _save(self, shape: str) -> None:
         old = self.holders[shape]
-        mx, my = self._head_machine()
+        mx, my = self._head()
         box = QMessageBox(self)
         box.setWindowTitle(f"Save the {NAMES[shape].lower()} position?")
         box.setText(f"Save the {NAMES[shape].lower()} position?")
         box.setInformativeText(f"Its centre moves from X {mm(old['x'])}, Y {mm(old['y'])} to the head's "
-                               f"position, X {mm(mx)}, Y {mm(my)} (machine mm).")
+                               f"position, X {mm(mx)}, Y {mm(my)} (mm from HOME).")
         save = box.addButton("Save", QMessageBox.ButtonRole.AcceptRole)
         box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
         box.exec()
@@ -468,10 +467,9 @@ class TestHoldersDialog(QDialog):
     def _on_position(self, x: float, y: float, _state: str) -> None:
         if self._state != "connected":
             return
-        mx, my = x + self.link.home_mpos[0], y + self.link.home_mpos[1]
-        self.pos_x.setText(mm(mx))
-        self.pos_y.setText(mm(my))
-        self.bed.set_head((mx, my))
+        self.pos_x.setText(mm(x))
+        self.pos_y.setText(mm(y))
+        self.bed.set_head((x, y))
 
     def _on_connected(self, connected: bool) -> None:
         if connected and self._state == "connecting":

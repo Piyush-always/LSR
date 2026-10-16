@@ -1,8 +1,9 @@
 """The three holders on the bed: machine.json in the printer-agent folder.
 
-The printer agent reads the same file. x, y = a holder's centre in MACHINE
-coordinates (mm from physical home); width, height = the keychain outline that
-all-shapes-test.js draws (hardware-verified). The shapes match
+The printer agent reads the same file. x, y = a holder's centre in mm from HOME
+(where homing leaves the head; never the laser's raw machine coordinates, which
+are off by ~30 mm before the first homing after power-on); width, height = the
+keychain outline that all-shapes-test.js draws (hardware-verified). The shapes match
 printer-agent/holders.js exactly, so a trace here follows what a job engraves.
 """
 from __future__ import annotations
@@ -35,7 +36,7 @@ def load(folder: str | None) -> tuple[dict, str]:
 
 
 def save_centre(folder: str, shape: str, x: float, y: float) -> dict:
-    """Set one holder's centre (machine mm); everything else in the file is kept."""
+    """Set one holder's centre (mm from HOME); everything else in the file is kept."""
     path = Path(folder) / FILE
     data = json.loads(path.read_text(encoding="utf-8"))
     data["holders"][shape]["x"] = round(x, 2)

@@ -57,7 +57,6 @@ class GrblLink(QObject):
         self._wco = (0.0, 0.0)
         self.connected = False
         self.x = self.y = 0.0                     # head position, mm from HOME
-        self.home_mpos = (0.0, 0.0)               # machine position of HOME (where homing stopped)
         self._jobs: queue.Queue = queue.Queue()
         threading.Thread(target=self._run, name="grbl-link", daemon=True).start()
 
@@ -131,12 +130,8 @@ class GrblLink(QObject):
             self._send("$H", timeout=HOMING_TIMEOUT_S)    # also clears a start-up alarm lock
         except GrblError as e:                            # an alarm's text already says to check the switches
             raise GrblError(f"Homing failed: {e}")
-        for cmd in ("G21", "G90", "M5", "G92.1"):
+        for cmd in ("G21", "G90", "M5", "G92.1", "G92 X0 Y0"):   # same as the agent: HOME = homed spot
             self._send(cmd)
-        self.home_mpos = (0.0, 0.0)
-        if self._status():                                # no offsets now: the reading is the machine position
-            self.home_mpos = (self.x, self.y)
-        self._send("G92 X0 Y0")                           # same as the agent: HOME = homed spot
         self.connected = True
         self.connected_changed.emit(True)
         self._report()

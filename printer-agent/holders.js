@@ -2,11 +2,10 @@
 // draws each outline at the right place, size and shape on the machine
 // (hardware-verified). Nothing is calibrated per PC.
 //
-// Holder centres are MACHINE coordinates (MPos) from physical home ($H). After
-// homing, laser-sender reports where the head actually stopped, and every position
-// here is converted to mm from that spot (= HOME, G92 X0 Y0). So even if homing
-// stops a fraction of a millimetre away from MPos 0,0, the holders are still hit
-// exactly.
+// Holder centres are mm from HOME: the spot where homing ($H) leaves the head, which
+// the agent makes 0,0 (G92 X0 Y0) after every homing. Never the laser's raw machine
+// coordinates: before its first homing after power-on the laser counts from wherever
+// the head was (about 30 mm off), so only distances from the homed spot stay true.
 const fs = require('fs');
 const path = require('path');
 
@@ -24,11 +23,6 @@ function loadMachine() {
 }
 
 const HOLDERS = loadMachine();
-let homeMpos = { x: 0, y: 0 };   // machine position of HOME; set after every homing
-
-function setHomeMachinePosition(pos) {
-    homeMpos = { x: pos.x, y: pos.y };
-}
 
 function holder(shape) {
     const h = HOLDERS[shape];
@@ -39,7 +33,7 @@ function holder(shape) {
 // A holder's centre in mm from HOME.
 function holderCentre(shape) {
     const h = holder(shape);
-    return { x: h.x - homeMpos.x, y: h.y - homeMpos.y };
+    return { x: h.x, y: h.y };
 }
 
 // The keychain outline around (0, 0), exactly as all-shapes-test.js draws it:
@@ -116,4 +110,4 @@ function fitInside(outline, polylines, centre, margin) {
     return scaled(lo);
 }
 
-module.exports = { MACHINE_PATH, SHAPES, HOLDERS, setHomeMachinePosition, holderCentre, borderPolyline, placement, clearance, fitInside };
+module.exports = { MACHINE_PATH, SHAPES, HOLDERS, holderCentre, borderPolyline, placement, clearance, fitInside };

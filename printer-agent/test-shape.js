@@ -1,8 +1,8 @@
 // Move to a holder's centre with the laser off, and leave the head there.
 // Run from printer-agent: node test-shape.js heart|rectangle|circle
 // The machine homes first ($H); the centres come from machine.json.
-const { connect, sendCommand, disconnect, homeMachinePosition, SERIAL_CONFIG } = require('./laser-sender');
-const { SHAPES, setHomeMachinePosition, holderCentre } = require('./holders');
+const { connect, sendCommand, disconnect, SERIAL_CONFIG } = require('./laser-sender');
+const { SHAPES, holderCentre } = require('./holders');
 
 const shapeId = (process.argv[2] || '').toLowerCase();
 
@@ -21,7 +21,6 @@ async function main() {
 
         await connect();                                   // homes ($H)
         connected = true;
-        setHomeMachinePosition(homeMachinePosition());
         const centre = holderCentre(shapeId);
         await sendCommand('M5');
         await sendCommand('G90');

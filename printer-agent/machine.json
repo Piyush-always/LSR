@@ -1,8 +1,8 @@
 {
-  "_about": "The three holders on the bed, as all-shapes-test.js draws them on the machine (hardware-verified). x, y = the holder centre in MACHINE coordinates (MPos, mm) from physical home ($H). width, height = the keychain outline (mm): the border that is engraved; the name and photo go inside it. The printer agent and Laser Queue both read this file; change a value here and restart the agent.",
+  "_about": "The three holders on the bed, as all-shapes-test.js draws them on the machine (hardware-verified). x, y = the holder centre in mm from HOME: the spot where homing ($H) leaves the head, which the agent makes 0,0 after every homing (never the laser's raw machine coordinates, which before the first homing after power-on are off by ~30 mm). width, height = the keychain outline (mm): the border that is engraved; the name and photo go inside it. The printer agent and Laser Queue both read this file; Laser Queue's Test holders > Save here updates a centre. Restart the agent after a change.",
   "holders": {
-    "heart":     { "x": 60,  "y": 28,  "width": 45, "height": 45 },
-    "rectangle": { "x": 170, "y": 28,  "width": 29, "height": 61 },
-    "circle":    { "x": 97,  "y": 135, "width": 90, "height": 90 }
+    "heart":     { "x": 60, "y": 28, "width": 45, "height": 45 },
+    "rectangle": { "x": 170, "y": 28, "width": 29, "height": 61 },
+    "circle":    { "x": 97, "y": 135, "width": 90, "height": 90 }
   }
 }
