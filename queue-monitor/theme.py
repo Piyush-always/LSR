@@ -1,5 +1,5 @@
-"""Turns the tokens into Qt: colours, fonts, icons, the stylesheet, and live
-light/dark switching when Windows changes theme."""
+"""Turns the tokens into Qt: colours, fonts, icons and the stylesheet. The app is
+white (light) whatever the Windows theme; LASERQUEUE_THEME=dark switches to dark."""
 from __future__ import annotations
 
 import ctypes
@@ -171,15 +171,10 @@ class Theme(QObject):
     # -- application-wide --------------------------------------------------------
     def attach(self, app) -> None:
         self._app = app
-        QGuiApplication.styleHints().colorSchemeChanged.connect(lambda *_: self._apply())
         self._apply()
 
     def _apply(self) -> None:
-        forced = os.environ.get("LASERQUEUE_THEME", "").lower()     # "light" / "dark" override
-        if forced in ("light", "dark"):
-            self.dark = forced == "dark"
-        else:
-            self.dark = QGuiApplication.styleHints().colorScheme() != Qt.ColorScheme.Light
+        self.dark = os.environ.get("LASERQUEUE_THEME", "").lower() == "dark"   # white unless asked for dark
         self.p = T.DARK if self.dark else T.LIGHT
 
         pal = QPalette()
