@@ -5,7 +5,7 @@ Steps for the printer laptop (the one connected to the Creality CV-01 Pro laser)
 ## First time only
 
 1. Install **Node.js LTS** from https://nodejs.org.
-2. Get the code. In the repo folder: `git fetch`, then `git checkout release/final` (until it's merged into `main`).
+2. Get the code. In the repo folder: `git fetch`, then `git checkout position-and-shape-check` (until it's merged into `main`).
 3. Install the agent's packages: open Command Prompt in the `printer-agent` folder and run `npm install`.
 4. Put the database key in the `printer-agent` folder:
    - https://console.firebase.google.com → project **laser-keychain-official** → gear icon → **Project settings** → **Service accounts** → **Generate new private key**.
