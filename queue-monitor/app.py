@@ -15,7 +15,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QFont, QIcon, QKeySequence, QShortcut
-from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileDialog, QFrame, QHBoxLayout,
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QFileDialog, QFrame, QHBoxLayout,
                                QHeaderView, QLineEdit, QMainWindow, QMessageBox, QPushButton,
                                QSplitter, QStackedWidget, QTableView, QVBoxLayout, QWidget)
 
@@ -24,6 +24,7 @@ import calibrate_ui as CAL
 import console_ui as C
 import data as D
 import firestore as fs
+import local_print as LP
 import tokens as T
 import widgets as W
 from theme import app_icon_pixmap, font, theme
@@ -66,6 +67,7 @@ class MainWindow(QMainWindow):
         self.settings = QSettings("Invengic", "LaserQueue")
         self.runner = AG.AgentRunner()
         self.run_panel = C.RunPanel()
+        self.local_page = LP.LocalPrintPage()
 
         self.model = W.OrdersModel()
         self.proxy = W.OrdersProxy()
@@ -76,7 +78,11 @@ class MainWindow(QMainWindow):
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(0)
         v.addWidget(self._build_toolbar())
-        v.addWidget(self._build_stat_row())
+        orders_page = QWidget()
+        ov = QVBoxLayout(orders_page)
+        ov.setContentsMargins(0, 0, 0, 0)
+        ov.setSpacing(0)
+        ov.addWidget(self._build_stat_row())
         body = QHBoxLayout()
         body.setSpacing(0)
         self.sidebar = W.Sidebar(self.run_panel)
@@ -84,7 +90,11 @@ class MainWindow(QMainWindow):
         body.addWidget(self.sidebar)
         body.addWidget(self._build_primary(), 1)
         body.addWidget(self.inspector)
-        v.addLayout(body, 1)
+        ov.addLayout(body, 1)
+        self.pages = QStackedWidget()
+        self.pages.addWidget(orders_page)
+        self.pages.addWidget(self.local_page)
+        v.addWidget(self.pages, 1)
         v.addWidget(self._build_status_strip())
         self.setCentralWidget(root)
 
@@ -115,6 +125,9 @@ class MainWindow(QMainWindow):
         self.runner.state_changed.connect(self._on_agent_state)
         self.runner.output.connect(self.log_panel.append)
         self.runner.hint.connect(self.log_panel.set_hint)
+        self.run_panel.port.currentIndexChanged.connect(
+            lambda _i: self.local_page.set_port(self.run_panel.port.currentData()))
+        self.local_page.busy_changed.connect(self._on_local_busy)
 
         self._set_filter("waiting")
         self._request(full=True)
@@ -129,6 +142,17 @@ class MainWindow(QMainWindow):
         h.setSpacing(T.SP_12)
         h.addWidget(W.label("Laser Queue", weight=QFont.Weight.DemiBold))
         h.addWidget(W.chip(fs.PROJECT))
+        h.addSpacing(T.SP_16)
+        self.tab_group = QButtonGroup(self)
+        for i, caption in enumerate(("Orders", "Local print")):
+            tab = QPushButton(caption)
+            tab.setObjectName("Tab")
+            tab.setCheckable(True)
+            tab.setChecked(i == 0)
+            tab.setCursor(Qt.CursorShape.PointingHandCursor)
+            tab.clicked.connect(lambda _c=False, i=i: self._show_page(i))
+            self.tab_group.addButton(tab)
+            h.addWidget(tab)
         h.addStretch(1)
         self.search = QLineEdit()
         self.search.setObjectName("Search")
@@ -265,6 +289,7 @@ class MainWindow(QMainWindow):
                 self.cards[key].set_data(count, sub, tone)
         self.sidebar.set_snapshot(snap, now)
         self.run_panel.set_ports(snap.ports)
+        self.local_page.set_port(self.run_panel.port.currentData())   # set_ports changes it silently
         self.run_panel.refresh_checks()
         self.run_panel.set_blocked(self._other_agent_reason(snap, now))
 
@@ -356,10 +381,28 @@ class MainWindow(QMainWindow):
         self.status_left.setText(text)
         self.sidebar.printer.tick(now)
 
+    # -- tabs ------------------------------------------------------------------------------------------
+    def _show_page(self, index: int) -> None:
+        self.pages.setCurrentIndex(index)
+        self.search.setVisible(index == 0)            # search and refresh are for the orders
+        self.refresh_btn.setVisible(index == 0)
+
+    def _on_local_busy(self, busy: bool) -> None:
+        self._update_blocked()
+        if not busy and self._closing:
+            QTimer.singleShot(0, self.close)
+
+    def _update_blocked(self) -> None:
+        if self._snap is not None:
+            self.run_panel.set_blocked(self._other_agent_reason(self._snap, datetime.now(timezone.utc)))
+        else:
+            self.run_panel.set_blocked("A local print is using the laser." if self.local_page.busy else "")
+
     # -- operator console ---------------------------------------------------------------------------
     def _set_agent_folder(self, folder: str | None) -> None:
         self._agent_folder = folder
         self.run_panel.set_folder(folder)
+        self.local_page.set_folder(folder)
         self.log_panel.setVisible(bool(folder) or self.runner.running)
 
     def _choose_folder(self) -> None:
@@ -377,8 +420,8 @@ class MainWindow(QMainWindow):
         self.runner.start(folder, port)
 
     def _test_holders(self, folder: str, port: str) -> None:
-        if self.runner.running:
-            return                             # the agent has the port; the button is hidden then anyway
+        if self.runner.running or self.local_page.busy:
+            return                             # the agent or a local print has the port
         self.settings.setValue("laser_port", port)
         CAL.TestHoldersDialog(folder, port, self).exec()
         self.run_panel.refresh_checks()
@@ -394,6 +437,7 @@ class MainWindow(QMainWindow):
     def _on_agent_state(self, state: str, detail: str) -> None:
         self.run_panel.set_state(state, detail)
         self.log_panel.set_state(state)
+        self.local_page.set_agent_running(self.runner.running)
         if state == "waiting_blank":
             QApplication.alert(self)           # flash the taskbar button
             QApplication.beep()
@@ -405,6 +449,8 @@ class MainWindow(QMainWindow):
 
     def _other_agent_reason(self, snap: D.Snapshot, now: datetime) -> str:
         """Two agents would pull the same orders, so don't start while another is online."""
+        if self.local_page.busy:
+            return "A local print is using the laser."
         if self.runner.running or snap.fetched_at is None:
             return ""
         state, _ = D.printer_state(snap.printer, now)
@@ -428,6 +474,17 @@ class MainWindow(QMainWindow):
         return box.clickedButton() is go
 
     def closeEvent(self, e) -> None:
+        if self.local_page.busy:
+            if not self._closing:
+                if not self._confirm("Stop the local print and close?",
+                                     "A keychain is being printed from the Local print tab. Closing stops it "
+                                     "and ruins it.", "Stop and close"):
+                    e.ignore()
+                    return
+                self._closing = True
+                self.local_page.stop()
+            e.ignore()                             # closes for real once the print has stopped
+            return
         if self.runner.running:
             if not self._closing:
                 engraving = self.runner.state == "engraving"
@@ -452,6 +509,7 @@ class MainWindow(QMainWindow):
         self.inspector.retheme()
         self.run_panel.retheme()
         self.log_panel.retheme()
+        self.local_page.retheme()
         if self._snap is not None:
             self.sidebar.set_snapshot(self._snap, datetime.now(timezone.utc))
         self.table.viewport().update()

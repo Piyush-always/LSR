@@ -39,6 +39,8 @@ _LUCIDE = {
     "arrow-right": '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
     "play": '<polygon points="6 3 20 12 6 21 6 3"/>',
     "stop": '<rect width="14" height="14" x="5" y="5" rx="2"/>',
+    "image": '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/>'
+             '<path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
     "pointer": '<path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58'
                'a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/>',
 }
@@ -127,6 +129,29 @@ QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid $hairline_st
                        background: $surface_2; }
 QCheckBox::indicator:checked { background: $accent; border: 1px solid $accent; image: url("$check_png"); }
 QCheckBox:disabled { color: $text_3; }
+
+QFrame#Tile { background: $surface_2; border: 1px solid $hairline; border-radius: 10px; }
+QFrame#Tile:hover { background: $surface_3; }
+QFrame#Tile[selected="true"] { border: 2px solid $accent; }
+QPushButton#FontChip { background: $surface_2; border: 1px solid $hairline_st; border-radius: 8px; padding: 0px 8px; }
+QPushButton#FontChip:hover { background: $surface_3; }
+QPushButton#FontChip:checked { color: $accent; border: 2px solid $accent; }
+QLineEdit#Field { background: $surface_2; border: 1px solid $hairline_st; border-radius: 6px;
+                  padding: 0px 10px; min-height: 36px; color: $text_1;
+                  selection-background-color: $accent; selection-color: $on_accent; }
+QLineEdit#Field:focus { border: 1px solid $accent; }
+QLineEdit#Field:disabled { color: $text_3; }
+QSlider::groove:horizontal { height: 4px; background: $surface_3; border-radius: 2px; }
+QSlider::sub-page:horizontal { background: $accent; border-radius: 2px; }
+QSlider::handle:horizontal { background: $surface_2; border: 1px solid $hairline_st; width: 16px;
+                             margin: -7px 0px; border-radius: 8px; }
+QSlider::sub-page:horizontal:disabled { background: $hairline_st; }
+QProgressBar { background: $surface_3; border: none; border-radius: 4px; }
+QProgressBar::chunk { background: $accent; border-radius: 4px; }
+QPushButton#Tab { background: transparent; color: $text_2; border: none; border-radius: 6px;
+                  padding: 0px 12px; min-height: 30px; }
+QPushButton#Tab:hover { color: $text_1; background: $surface_3; }
+QPushButton#Tab:checked { color: $text_1; background: $surface_2; border: 1px solid $hairline_st; }
 
 QFrame#LogPanel { background: $surface_1; border: none; }
 QPlainTextEdit#Log { background: $surface_1; color: $text_2; border: none;
