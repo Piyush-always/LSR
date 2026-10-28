@@ -1648,11 +1648,10 @@ async function initiatePayment(mode, userPhone) {
 
             let paths = {};
             if (!printImageBase64) {
-                try {
-                    paths = await uploadImageBlobs();
-                } catch (e) {
-                    console.warn('Storage upload warning:', e);
-                }
+                paths = await uploadImageBlobs();
+            }
+            if (!printImageBase64 && (!paths.originalImagePath || !paths.printImagePath)) {
+                throw new Error('The processed photo could not be prepared. Please upload it again.');
             }
 
             payload = { mode: 'image', shape: selectedShapeId, machineId: getMachineId(), printImageBase64, phone_number, phone_e164, ...paths };
@@ -1712,9 +1711,14 @@ async function initiatePayment(mode, userPhone) {
             const httpData = await httpRes.json();
             if (httpData && httpData.orderId) {
                 orderId = httpData.orderId;
+                payload.firestoreId = httpData.firestoreId || '';
             }
         } catch (err) {
             console.warn('HTTP order creation warning:', err);
+        }
+
+        if (!orderId || !payload.firestoreId) {
+            throw new Error('Could not create a valid order for checkout. Please try again.');
         }
 
         if (typeof Razorpay !== 'undefined') {

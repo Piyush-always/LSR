@@ -10,6 +10,7 @@ const readline = require('readline');
 // Engraving mode: 'vector' (filled letters via opentype) or 'raster' (pixel scan)
 const ENGRAVING_MODE = process.env.ENGRAVING_MODE || 'vector';
 const { connect, sendGcodeFile, listPorts, disconnect, getCurrentPosition, homeAndResetOrigin, SERIAL_CONFIG } = require('./laser-sender');
+const { FeederLink } = require('./feeder-link');
 
 // Load MACHINE_ID configuration (config.json, env variable, or default 'laser-001')
 let CONFIG = {};
@@ -26,6 +27,8 @@ const SERVICE_ACCOUNT_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.
 const STORAGE_BUCKET = process.env.STORAGE_BUCKET || 'laser-keychain-official.firebasestorage.app';
 const RECONNECT_INTERVAL_MS = 5000;
 const CONFIRM_FRESH_BLANK = CONFIG.confirmFreshBlank !== false;   // ask before a holder is reused
+const FEEDER_PORT = process.env.FEEDER_PORT || CONFIG.feederPort || '';
+const feeder = FEEDER_PORT ? new FeederLink(FEEDER_PORT) : null;
 
 if (admin.apps.length === 0) {
     if (fs.existsSync(SERVICE_ACCOUNT_PATH)) {
@@ -47,6 +50,7 @@ const db = admin.firestore();
 // State
 let laserConnected = false;
 let isProcessing = false;
+let queuePausedForFailure = false;
 let firestoreUnsubscribe = null;
 let currentJob = null;     // { orderId, name, mode, position, startedAt, progress }
 let lastProgressAt = 0;    // throttle for progress heartbeats
@@ -103,6 +107,13 @@ async function start() {
 
     // Block until the laser is connected. Without it, we do not touch the queue.
     await ensureLaserConnected();
+
+    if (feeder) {
+        await feeder.connect();
+        console.log('[FEEDER] Automatic material loading is enabled.');
+    } else {
+        console.log('[FEEDER] Automatic loading is disabled. Set FEEDER_PORT in config.json or the environment to enable it.');
+    }
 
     // Print the configured reference points so the operator can verify them.
     printConfigBanner();
@@ -197,6 +208,7 @@ function startQueueListener() {
 // ===== QUEUE PROCESSOR =====
 async function processQueue() {
     if (isProcessing) return;
+    if (queuePausedForFailure) return;
     if (!laserConnected) {
         console.log('[SKIP] Laser not connected — orders will wait.');
         return;
@@ -258,6 +270,9 @@ async function processQueue() {
                     console.error('[FAIL] Laser connection lost. Will try to reconnect...\n');
                     logEvent('Laser connection lost — reconnecting');
                     reconnectInBackground();
+                } else {
+                    queuePausedForFailure = true;
+                    console.error('[FAIL] Queue paused after this print error. Resolve or cancel the failed order, then restart the agent.');
                 }
                 break; // exit processing loop
             }
@@ -301,7 +316,7 @@ async function processOrder(order) {
 
     for (let i = startAt; i < units.length; i++) {
         const label = units.length > 1 ? `${displayName} (${i + 1} of ${units.length})` : displayName;
-        await ensureFreshBlank(units[i].shape);
+        if (!feeder) await ensureFreshBlank(units[i].shape);
         await engraveUnit(units[i], units.length > 1 ? `${order.id}_${i + 1}` : order.id, label);
         if (isCart) {
             await db.collection('orders').doc(order.id).update({ items_done: i + 1 });
@@ -325,20 +340,38 @@ function printUnits(order) {
         const units = [];
         for (const item of order.items || []) {
             const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
-            for (let n = 0; n < quantity; n++) units.push({ ...item, shape: item.shape || 'rectangle' });
+            const shape = resolveOrderShape(item.shape, item.shapeId, item.productId);
+            if (item.mode !== 'image') validateOrderText(item.name);
+            for (let n = 0; n < quantity; n++) units.push({ ...item, shape });
         }
         if (units.length === 0) throw new Error('Cart order has no keychains');
         return units;
     }
+    const mode = order.mode || 'text';
+    if (mode !== 'image') validateOrderText(order.name);
     return [{
-        mode: order.mode === 'image' ? 'image' : 'text',
-        shape: order.shape || 'rectangle',
+        mode,
+        shape: resolveOrderShape(order.shape, order.shapeId, order.productId),
         name: order.name,
         fontId: order.fontId,
         textPos: order.textPos || null,
         printImageBase64: order.printImageBase64 || null,
         printImagePath: order.printImagePath || null,
     }];
+}
+
+function validateOrderText(name) {
+    if (typeof name !== 'string' || !name.trim() || Array.from(name.trim()).length > 25) {
+        throw new Error('Text order has no valid customer text; refusing to print a placeholder. Cancel or correct this order.');
+    }
+}
+
+function resolveOrderShape(...values) {
+    const shape = values.find(value => typeof value === 'string' && value.trim())?.trim().toLowerCase();
+    if (!SHAPES.includes(shape)) {
+        throw new Error(`Order has no valid shape (${shape || 'missing'}); refusing to default to rectangle`);
+    }
+    return shape;
 }
 
 // Engrave one keychain on its shape's holder; the G-code returns to HOME at the end.
@@ -377,6 +410,9 @@ async function engraveUnit(unit, fileId, label) {
         }
     }
 
+    // Load the matching blank and wait for the Arduino before the laser can start.
+    if (feeder) await feeder.load(unit.shape);
+
     // Step 3: Send to laser — must succeed or we throw
     console.log('[STEP 3] Sending to laser printer...');
     usedHolders.add(unit.shape);   // from the first burn, this blank is no longer fresh
@@ -398,8 +434,12 @@ async function engraveUnit(unit, fileId, label) {
     console.log('[HOME] Returning to physical HOME after this keychain...');
     await homeAndResetOrigin();
 
+    // Remove a finished rectangle only after engraving and return-to-home both succeed.
+    if (feeder && unit.shape === 'rectangle') await feeder.removeRectangle();
+
     // Sanity: did homing establish the expected work origin?
     await logCurrentPosition('Position after print');
+
 }
 
 // ===== FRESH BLANKS =====
@@ -508,7 +548,8 @@ process.on('SIGINT', async () => {
     // Best-effort: mark the agent offline so the website updates immediately.
     try { await publishStatus({ current: null, waitingFor: null }); } catch (e) { /* ignore */ }
     await disconnect();   // laser off, back to HOME, then close
-    process.exit(0);
+    if (feeder) await feeder.close();
+     process.exit(0);
 });
 
 // Start the agent

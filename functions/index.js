@@ -37,20 +37,20 @@ const {
     UNIT_PRICE_PAISE,
     ALLOWED_FONT_IDS,
     DEFAULT_FONT_ID,
-    validateShape,
+    requireShape,
     cleanTextPos,
     buildCartOrder,
 } = require('./orders');
 
 function buildTextOrder(data) {
     const req = data || {};
-    const name = req.name || 'KEYCHAIN';
+    const name = req.name;
     const fontId = req.fontId;
     const shape = req.shape;
     const phone_number = req.phone_number || null;
     const phone_e164 = req.phone_e164 || (phone_number ? '91' + phone_number : null);
 
-    const trimmed = String(name).trim();
+    const trimmed = typeof name === 'string' ? name.trim() : '';
     const codePointLength = Array.from(trimmed).length;
     if (codePointLength === 0 || codePointLength > 25) {
         throw new functions.https.HttpsError('invalid-argument', 'Name must be 1-25 characters.');
@@ -59,7 +59,7 @@ function buildTextOrder(data) {
     const cleanFontId = (typeof fontId === 'string' && ALLOWED_FONT_IDS.includes(fontId))
         ? fontId
         : DEFAULT_FONT_ID;
-    const cleanShape = validateShape(shape);
+    const cleanShape = requireShape(shape);
 
     return {
         fields: {
@@ -73,11 +73,23 @@ function buildTextOrder(data) {
 async function buildImageOrder(data) {
     const req = data || {};
     const { originalImagePath, printImagePath, printImageBase64, shape } = req;
-    const cleanShape = validateShape(shape);
+    const cleanShape = requireShape(shape);
     const phone_number = req.phone_number || null;
     const phone_e164 = req.phone_e164 || (phone_number ? '91' + phone_number : null);
 
     if (printImageBase64) {
+        const pngMatch = typeof printImageBase64 === 'string'
+            ? printImageBase64.match(/^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/)
+            : null;
+        const pngBytes = pngMatch ? Buffer.from(pngMatch[1], 'base64') : null;
+        const isPng = pngBytes && pngBytes.length >= 8
+            && pngBytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+        if (!isPng) {
+            throw new functions.https.HttpsError('invalid-argument', 'The processed photo is missing or is not a valid PNG. Please upload it again.');
+        }
+        if (printImageBase64.length > 750 * 1024) {
+            throw new functions.https.HttpsError('invalid-argument', 'The processed photo is too large. Please use a smaller image.');
+        }
         return {
             fields: {
                 mode: 'image',
@@ -95,20 +107,7 @@ async function buildImageOrder(data) {
 
     const validPath = (p) => typeof p === 'string' && p.startsWith('uploads/') && !p.includes('..');
     if (!validPath(originalImagePath) || !validPath(printImagePath)) {
-        return {
-            fields: {
-                mode: 'image',
-                shape: cleanShape,
-                name: null,
-                fontId: null,
-                originalImagePath: originalImagePath || null,
-                printImagePath: printImagePath || null,
-                printImageBase64: printImageBase64 || null,
-                phone_number,
-                phone_e164,
-            },
-            rzpNotes: { mode: 'image', shape: cleanShape, phone_number },
-        };
+        throw new functions.https.HttpsError('invalid-argument', 'The photo upload is incomplete. Please upload the image again.');
     }
 
     const bucket = admin.storage().bucket();
@@ -122,23 +121,11 @@ async function buildImageOrder(data) {
         printExists = results[1][0];
     } catch (e) {
         console.warn('Storage exists check:', e);
+        throw new functions.https.HttpsError('unavailable', 'Could not verify the photo upload. Please try again.');
     }
 
     if (!origExists || !printExists) {
-        return {
-            fields: {
-                mode: 'image',
-                shape: cleanShape,
-                name: null,
-                fontId: null,
-                originalImagePath,
-                printImagePath,
-                printImageBase64: printImageBase64 || null,
-                phone_number,
-                phone_e164,
-            },
-            rzpNotes: { mode: 'image', shape: cleanShape, phone_number },
-        };
+        throw new functions.https.HttpsError('failed-precondition', 'The photo upload could not be found. Please upload the image again.');
     }
 
     let safe = {};

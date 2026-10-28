@@ -79,6 +79,7 @@ function placement(shape) {
     const centre = holderCentre(shape);
     return {
         centre,
+        machineCentre: { x: h.x, y: h.y },
         blank: { width: h.width, height: h.height },
         turned: h.height > h.width,
         border: borderPolyline(shape).map(([x, y]) => [centre.x + x, centre.y + y]),

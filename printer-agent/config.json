@@ -1,5 +1,6 @@
 {
   "machineId": "laser-001",
   "port": "/dev/tty.usbmodem1234561",
-  "baudRate": 115200
+  "baudRate": 115200,
+  "feederPort": "COM3"
 }

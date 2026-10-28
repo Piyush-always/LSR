@@ -100,11 +100,17 @@ async function textToGcode(name, orderId, fontId = 'pixel', shape = 'rectangle')
     // heart would otherwise reach its narrowing sides): shrink it around the centre.
     const textPolylines = fitInside(place.border, placed, place.centre, TEXT_MARGIN_MM);
 
-    // All paths in machine coordinates (mm from HOME, Y-up)
+    // Build geometry in HOME coordinates for fitting, then convert it to local
+    // coordinates around the holder centre. The machine move and G92 below use
+    // the same G53 positioning sequence as the hardware-tested shape scripts.
     const paths = [place.border, ...textPolylines];
+    const localPaths = paths.map(polyline => polyline.map(([x, y]) => [
+        x - place.centre.x,
+        y - place.centre.y,
+    ]));
 
     // Generate G-code
-    const gcodeText = pathsToGcode(paths, orderId, cleanName, cleanFontId, shape);
+    const gcodeText = pathsToGcode(localPaths, orderId, cleanName, cleanFontId, shape, place.machineCentre);
 
     // Save to file
     const outputDir = path.join(__dirname, 'output');
@@ -241,7 +247,7 @@ function flattenOpentypePath(opentypePath) {
 // =================================================================
 // PATHS → G-CODE
 // =================================================================
-function pathsToGcode(polylines, orderId, name, fontId, shape = 'rectangle') {
+function pathsToGcode(polylines, orderId, name, fontId, shape = 'rectangle', machineCentre = { x: 0, y: 0 }) {
     const lines = [];
 
     lines.push('; Vector keychain G-code');
@@ -252,16 +258,13 @@ function pathsToGcode(polylines, orderId, name, fontId, shape = 'rectangle') {
     lines.push(`; Mode: outline only`);
     lines.push(`; Total paths: ${polylines.length}`);
     lines.push('');
-    // NOTE: HOME (G92 X0 Y0) is set ONCE when the printer agent connects
-    // to the laser — see sendInitSequence() in laser-sender.js. Every job
-    // runs in that shared coordinate system, so the laser reliably returns
-    // to the exact same HOME after each job. That's what prevents drift
-    // between prints.
     lines.push('G21');          // mm mode
     lines.push('G90');          // absolute positioning
     lines.push('M5');           // laser off
-    // Feed rate set the way Tejas's hardware-tested code sets it (G1 F...). A bare
-    // "F800" line is the likely cause of the error:20 failures seen on Oct 14.
+    // Match the tested shape scripts: move to the holder in machine coordinates,
+    // then draw around its local origin. Keep the laser off during positioning.
+    lines.push(`G53 G0 X${machineCentre.x} Y${machineCentre.y}`);
+    lines.push('G92 X0 Y0');
     lines.push(`G1 F${SETTINGS.feedRate}`);
     lines.push('');
 
@@ -270,7 +273,7 @@ function pathsToGcode(polylines, orderId, name, fontId, shape = 'rectangle') {
 
         const [sx, sy] = polyline[0];
         lines.push('M5');
-        lines.push(`G0 X${sx.toFixed(3)} Y${sy.toFixed(3)}`);
+        lines.push(`G0 F${SETTINGS.feedRate} X${sx.toFixed(3)} Y${sy.toFixed(3)}`);
         lines.push(`M3 S${SETTINGS.maxPower}`);
 
         for (let i = 1; i < polyline.length; i++) {

@@ -10,9 +10,8 @@ const { placement } = require('./holders');
 //      black/white bitmap sized to exactly this area; it's resampled only for
 //      its size on the real blank. Convention: WHITE pixel = burn, BLACK = skip.
 //
-//  Coordinates: mm from HOME, Y-up, like text-to-gcode.js. holders.js gives the
-//  holder centre and the real blank (machine.json). HOME is set ONCE at connect
-//  (see laser-sender.js) — we do NOT reset origin here.
+//  Coordinates: local mm around the holder centre, Y-up. The holder centre comes
+//  from machine.json and is reached with G53 before G92 sets the local origin.
 // =====================================================================
 
 // Per shape: the photo area of the website design (mm; imageArea in
@@ -75,7 +74,7 @@ async function imageToGcode(imagePath, orderId, shape = 'rectangle') {
     const at = (row, col) => {
         const dx = col * stepX - (area.width * fit) / 2, dy = (area.height * fit) / 2 - row * stepY;
         const [x, y] = place.turned ? [-dy, dx] : [dx, dy];
-        return `X${(place.centre.x + x).toFixed(3)} Y${(place.centre.y + y).toFixed(3)}`;
+        return `X${x.toFixed(3)} Y${y.toFixed(3)}`;
     };
 
     const gcode = [];
@@ -83,11 +82,13 @@ async function imageToGcode(imagePath, orderId, shape = 'rectangle') {
     gcode.push(`; Order: ${orderId}`);
     gcode.push(`; Grid: ${cols} x ${rows} px @ ${SETTINGS.pixelSize} mm/px on the blank`);
     gcode.push(`; Engrave area (${key}): ${(area.width * fit).toFixed(1)} x ${(area.height * fit).toFixed(1)} mm centred on the holder`);
-    gcode.push('; Convention: white pixel = burn. HOME set at connect (no G92 here).');
+    gcode.push('; Convention: white pixel = burn. Coordinates are local to the holder centre.');
     gcode.push('');
     gcode.push('G21          ; mm mode');
     gcode.push('G90          ; absolute positioning');
     gcode.push('M5           ; laser off');
+    gcode.push(`G53 G0 X${place.machineCentre.x} Y${place.machineCentre.y} ; move to holder centre`);
+    gcode.push('G92 X0 Y0    ; local origin at holder centre');
     gcode.push(`G0 F${SETTINGS.travelRate}  ; travel speed`);
     gcode.push('M3 S0        ; arm laser (constant power mode, zero power)');
     gcode.push(`G1 F${SETTINGS.feedRate}    ; engrave speed`);
@@ -113,7 +114,7 @@ async function imageToGcode(imagePath, orderId, shape = 'rectangle') {
         const stepCol = reverse ? -1 : 1;
 
         // Move to the row's start with the laser off.
-        gcode.push(`G0 ${at(row, startCol)} S0`);
+        gcode.push(`G0 F${SETTINGS.travelRate} ${at(row, startCol)} S0`);
 
         // Walk the row, emitting a segment each time the power changes.
         let currentPower = -1;

@@ -227,13 +227,80 @@ async function homeAndResetOrigin() {
 async function homeMachine() {
     console.log('[HOME] Homing: the head moves to its HOME corner. Keep the bed clear.');
     try {
-        await sendCommand('$H');
+        await sendHomingCommand();
     } catch (err) {
         const homing = new Error(`Homing failed (${err.message}). Check the limit switches and that nothing blocks the head.`);
         homing.homing = true;
         throw homing;
     }
     console.log('[HOME] Homing complete');
+}
+
+// Some CV-01 firmware completes the physical $H cycle but omits the final
+// `ok`. For homing only, use GRBL's status report as a completion signal: after
+// the head has left its initial position, two consecutive Idle reports mean
+// the cycle stopped moving. Alarms/errors still fail immediately.
+function sendHomingCommand() {
+    return new Promise((resolve, reject) => {
+        if (!serialPort || !serialPort.isOpen || !parser) {
+            reject(new Error('Serial port not open'));
+            return;
+        }
+
+        let done = false;
+        let sawMotion = false;
+        let sawHomingState = false;
+        let idleReports = 0;
+        let lastPosition = null;
+        let pollTimer = null;
+        const finish = (err) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timeout);
+            clearInterval(pollTimer);
+            parser.removeListener('data', onData);
+            if (err) reject(err); else resolve();
+        };
+        const onData = (data) => {
+            const line = data.toString().trim();
+            if (/^ALARM/i.test(line) || /^error/i.test(line)) {
+                finish(new Error(`GRBL response during homing: ${line}`));
+                return;
+            }
+            if (/^ok\s*$/i.test(line) || /idleok\s*$/i.test(line)) {
+                finish();
+                return;
+            }
+            const status = line.match(/^<([^|>]+)\|([^>]*)>/i);
+            if (!status) return;
+            const state = status[1].toLowerCase();
+            const coordinates = status[2].match(/(?:MPos|WPos):(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i);
+            if (coordinates) {
+                const position = `${coordinates[1]},${coordinates[2]}`;
+                if (lastPosition !== null && position !== lastPosition) sawMotion = true;
+                lastPosition = position;
+            }
+            if (state === 'home' || state === 'run' || state === 'jog') sawHomingState = true;
+            if (state === 'alarm') {
+                finish(new Error(`GRBL alarm state during homing: ${line}`));
+            } else if (state === 'idle' && (sawMotion || sawHomingState)) {
+                if (++idleReports >= 3) {
+                    console.log('[HOME] GRBL reports homing motion stopped.');
+                    finish();
+                }
+            } else {
+                idleReports = 0;
+            }
+        };
+        parser.on('data', onData);
+        const timeout = setTimeout(() => finish(new Error(`Homing timeout (${COMMAND_TIMEOUT_MS}ms): no completion acknowledgement or confirmed motion stop`)), COMMAND_TIMEOUT_MS);
+        pollTimer = setInterval(() => {
+            if (serialPort && serialPort.isOpen) serialPort.write('?');
+        }, 250);
+        serialPort.write('$H\n', (err) => {
+            if (err) finish(err);
+        });
+    });
 }
 
 /**

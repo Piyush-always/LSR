@@ -25,6 +25,13 @@ function validateShape(shape) {
     return (typeof shape === 'string' && ALLOWED_SHAPES.includes(shape)) ? shape : DEFAULT_SHAPE;
 }
 
+function requireShape(shape, prefix = '') {
+    if (typeof shape !== 'string' || !ALLOWED_SHAPES.includes(shape)) {
+        throw new HttpsError('invalid-argument', `${prefix}Choose a valid keychain shape.`);
+    }
+    return shape;
+}
+
 function cleanFontId(fontId) {
     return (typeof fontId === 'string' && ALLOWED_FONT_IDS.includes(fontId)) ? fontId : DEFAULT_FONT_ID;
 }
@@ -79,7 +86,7 @@ function buildCartOrder(data) {
             throw new HttpsError('invalid-argument', `${prefix}quantity must be 1-${MAX_KEYCHAINS_PER_ORDER}.`);
         }
         quantity += qty;
-        const shape = validateShape(it.shape || it.shapeId);
+        const shape = requireShape(it.shape || it.shapeId, prefix);
 
         if (it.mode === 'image') {
             const state = it.imageProcessorState || {};
@@ -137,6 +144,7 @@ module.exports = {
     ALLOWED_SHAPES,
     DEFAULT_SHAPE,
     validateShape,
+    requireShape,
     cleanFontId,
     cleanName,
     cleanTextPos,
