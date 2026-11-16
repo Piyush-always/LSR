@@ -81,8 +81,9 @@ function buildCartOrder(data) {
     const items = rawItems.map((raw, index) => {
         const it = raw || {};
         const prefix = `Keychain ${index + 1}: `;
-        const qty = Number.parseInt(it.quantity, 10) || 1;
-        if (qty < 1 || qty > MAX_KEYCHAINS_PER_ORDER) {
+        const parsedQty = Number.parseInt(it.quantity, 10);
+        const qty = Number.isInteger(parsedQty) ? parsedQty : NaN;
+        if (!Number.isInteger(qty) || qty < 1 || qty > MAX_KEYCHAINS_PER_ORDER) {
             throw new HttpsError('invalid-argument', `${prefix}quantity must be 1-${MAX_KEYCHAINS_PER_ORDER}.`);
         }
         quantity += qty;

@@ -50,11 +50,18 @@
         }
 
         getTotalCount() {
-            return this.items.reduce((sum, item) => sum + (parseInt(item.quantity) || 1), 0);
+            return this.items.reduce((sum, item) => {
+                const qty = Number.parseInt(item.quantity, 10);
+                return sum + (Number.isInteger(qty) && qty > 0 ? qty : 0);
+            }, 0);
         }
 
         getSubtotal() {
-            return this.items.reduce((sum, item) => sum + ((parseFloat(item.price) || 1) * (parseInt(item.quantity) || 1)), 0);
+            return this.items.reduce((sum, item) => {
+                const qty = Number.parseInt(item.quantity, 10);
+                const count = Number.isInteger(qty) && qty > 0 ? qty : 0;
+                return sum + ((parseFloat(item.price) || 1) * count);
+            }, 0);
         }
 
         canAddQuantity(additionalCount = 1) {
@@ -77,11 +84,12 @@
             const item = this.items.find(i => i.id === itemId);
             if (!item) return { success: false };
 
-            const target = parseInt(targetQty, 10);
-            if (isNaN(target)) return { success: false };
+            const target = Number.parseInt(targetQty, 10);
+            if (!Number.isInteger(target) || target < 0) return { success: false };
 
-            const currentQty = parseInt(item.quantity) || 1;
-            const diff = target - currentQty;
+            const currentQty = Number.parseInt(item.quantity, 10);
+            const safeCurrentQty = Number.isInteger(currentQty) && currentQty > 0 ? currentQty : 1;
+            const diff = target - safeCurrentQty;
 
             if (diff > 0 && !this.canAddQuantity(diff)) {
                 return {
@@ -100,7 +108,15 @@
         }
 
         addItem(customization) {
-            const qty = parseInt(customization.quantity) || 1;
+            const parsedQty = Number.parseInt(customization.quantity, 10);
+            const qty = Number.isInteger(parsedQty) && parsedQty > 0 ? parsedQty : null;
+            if (qty === null) {
+                return {
+                    success: false,
+                    reason: 'invalid_quantity',
+                    message: 'Choose a valid quantity before adding to the cart.'
+                };
+            }
             if (!this.canAddQuantity(qty) && !this.editingItemId) {
                 return {
                     success: false,

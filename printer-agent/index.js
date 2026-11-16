@@ -339,7 +339,11 @@ function printUnits(order) {
     if (order.mode === 'cart') {
         const units = [];
         for (const item of order.items || []) {
-            const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
+            const parsedQty = Number.parseInt(item.quantity, 10);
+            const quantity = Number.isInteger(parsedQty) ? parsedQty : NaN;
+            if (!Number.isInteger(quantity) || quantity < 1) {
+                throw new Error(`Cart item has invalid quantity (${item.quantity ?? 'missing'}); refusing to print.`);
+            }
             const shape = resolveOrderShape(item.shape, item.shapeId, item.productId);
             if (item.mode !== 'image') validateOrderText(item.name);
             for (let n = 0; n < quantity; n++) units.push({ ...item, shape });
