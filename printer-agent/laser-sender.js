@@ -225,7 +225,7 @@ async function homeAndResetOrigin() {
 // the 'ok' onto debug text: "stop st_go_idleok"). A failure is not retried: running
 // into a faulty switch again and again would only grind the axis.
 async function homeMachine() {
-    console.log('[HOME] Homing: the head moves to its HOME corner. Keep the bed clear.');
+    console.log('[HOME] Homing: the head is moving to its HOME corner.');
     try {
         await sendHomingCommand();
     } catch (err) {
